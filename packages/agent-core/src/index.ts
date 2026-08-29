@@ -4,3 +4,5 @@ export type { AgentSession, SessionEventSink } from "./session.js";
 export { createAgentSession } from "./session.js";
 export type { DirEntry, EditorContext, SearchHit, WorkspacePort } from "./port.js";
 export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./paths.js";
+export type { PendingReview, ProposedFile, ReviewHost } from "./review.js";
+export { mergePending } from "./review.js";

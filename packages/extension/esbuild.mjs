@@ -1,8 +1,15 @@
 import * as esbuild from "esbuild";
+import { createRequire } from "node:module";
+import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const watch = process.argv.includes("--watch");
+const here = path.dirname(fileURLToPath(import.meta.url));
+/** UMD entry does `require("./impl/format")` at runtime; esbuild leaves that as a
+ *  live require next to dist/extension.js and activate() dies. ESM uses static imports. */
+const jsoncUmd = createRequire(path.join(here, "../agent-core/package.json")).resolve("jsonc-parser");
+const jsoncEsm = path.join(path.dirname(jsoncUmd), "..", "esm", "main.js");
 
 /** @vscode/ripgrep 1.18 is ESM and resolves rg.exe via createRequire(import.meta.url).
  *  esbuild's CJS bundle would otherwise emit `var import_meta = {}` and crash activate. */
@@ -29,6 +36,9 @@ const options = {
   platform: "node",
   sourcemap: true,
   logLevel: "info",
+  alias: {
+    "jsonc-parser": jsoncEsm,
+  },
   plugins: [ripgrepImportMetaPlugin],
 };
 

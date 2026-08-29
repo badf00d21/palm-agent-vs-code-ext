@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyExtMessage, type ChatLine } from "./chatMessages";
+import { applyExtMessage, shouldClearBusy, type ChatLine } from "./chatMessages";
 
 describe("applyExtMessage", () => {
   it("appends assistant text", () => {
@@ -18,11 +18,56 @@ describe("applyExtMessage", () => {
 
   it("formats error lines", () => {
     const next = applyExtMessage([], { type: "error", message: "Agent is busy" });
-    expect(next[0]?.text).toBe("Error: Agent is busy");
+    const line = next[0];
+    expect(line && line.role !== "review" ? line.text : undefined).toBe("Error: Agent is busy");
   });
 
   it("ignores done", () => {
     const prev: ChatLine[] = [{ role: "user", text: "x" }];
     expect(applyExtMessage(prev, { type: "done" })).toBe(prev);
+  });
+
+  it("creates and updates a review line by id", () => {
+    const first = applyExtMessage([], {
+      type: "diff_proposed",
+      id: "rev_1",
+      files: [{ path: "a.ts" }],
+    });
+    expect(first).toEqual([
+      { role: "review", id: "rev_1", files: ["a.ts"], status: "pending" },
+    ]);
+    const second = applyExtMessage(first, {
+      type: "diff_proposed",
+      id: "rev_1",
+      files: [{ path: "a.ts" }, { path: "b.ts" }],
+    });
+    expect(second).toHaveLength(1);
+    expect(second[0]).toEqual({
+      role: "review",
+      id: "rev_1",
+      files: ["a.ts", "b.ts"],
+      status: "pending",
+    });
+  });
+
+  it("does not clear busy on review-store errors", () => {
+    expect(shouldClearBusy({ type: "done" })).toBe(true);
+    expect(shouldClearBusy({ type: "error", message: "Agent is busy" })).toBe(true);
+    expect(shouldClearBusy({ type: "error", message: "No pending review" })).toBe(false);
+    expect(shouldClearBusy({ type: "error", message: "File is not in the review" })).toBe(false);
+    expect(shouldClearBusy({ type: "error", message: "File changed since proposal: a.ts" })).toBe(
+      false,
+    );
+    expect(shouldClearBusy({ type: "assistant_delta", text: "hi" })).toBe(false);
+  });
+
+  it("settles a review as kept", () => {
+    const pending = applyExtMessage([], {
+      type: "diff_proposed",
+      id: "rev_1",
+      files: [{ path: "a.ts" }],
+    });
+    const next = applyExtMessage(pending, { type: "diff_settled", id: "rev_1", status: "kept" });
+    expect(next[0]).toMatchObject({ role: "review", status: "kept" });
   });
 });

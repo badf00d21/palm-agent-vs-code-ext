@@ -44,6 +44,7 @@ describe("createAgentSession inference failures", () => {
         apiKey: "not-needed",
       },
       (event) => events.push(event),
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
     );
 
     const started = Date.now();
@@ -101,6 +102,7 @@ describe("createAgentSession inference failures", () => {
         apiKey: "not-needed",
       },
       (event) => events.push(event),
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
     );
 
     await session.startTurn("what is in echo.ts?");
@@ -112,5 +114,41 @@ describe("createAgentSession inference failures", () => {
       { type: "done" },
     ]);
     expect(session.busy).toBe(false);
+  });
+
+  it("cancel settles a hanging turn", async () => {
+    globalThis.fetch = (async (_url, init) => {
+      await new Promise<never>((_resolve, reject) => {
+        const abort = () => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (init?.signal?.aborted) {
+          abort();
+          return;
+        }
+        init?.signal?.addEventListener("abort", abort, { once: true });
+      });
+    }) as typeof fetch;
+
+    const events: ExtToWebview[] = [];
+    const session = createAgentSession(
+      fakePort(),
+      {
+        baseUrl: "http://localhost:11434/v1",
+        model: "deepseek-v4-pro",
+        apiKey: "not-needed",
+      },
+      (event) => events.push(event),
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    const running = session.startTurn("hello");
+    session.cancel();
+    await running;
+
+    expect(session.busy).toBe(false);
+    expect(events.some((e) => e.type === "error" && e.message === "Cancelled")).toBe(true);
   });
 });

@@ -17,11 +17,14 @@ function sliceError(error: unknown): string {
   return message.slice(0, 400);
 }
 
+const MAX_INFERENCE_STEPS = 12;
+
 export class EditorAgent extends BaseParticipant {
   private readonly pendingCalls = new Set<string>();
   private readonly failedCallIds = new Set<string>();
   private turnGeneration = 0;
   private signal: AbortSignal | undefined;
+  private inferenceSteps = 0;
 
   constructor(
     private readonly environment: AgenticEnvironment,
@@ -30,6 +33,7 @@ export class EditorAgent extends BaseParticipant {
     private readonly model: string,
     private readonly onIdle: (generation: number) => void,
     private readonly onFailed: (message: string, generation: number) => void,
+    private readonly onActivity?: (generation: number) => void,
   ) {
     super();
   }
@@ -39,6 +43,7 @@ export class EditorAgent extends BaseParticipant {
     this.signal = signal;
     this.pendingCalls.clear();
     this.failedCallIds.clear();
+    this.inferenceSteps = 0;
   }
 
   override onMessage(message: string): void {
@@ -80,6 +85,7 @@ export class EditorAgent extends BaseParticipant {
     if (this.isStale(generation)) {
       return;
     }
+    this.onActivity?.(generation);
     if (this.pendingCalls.size === 0) {
       this.run();
     }
@@ -137,6 +143,12 @@ export class EditorAgent extends BaseParticipant {
     const generation = this.turnGeneration;
     const signal = this.signal;
     if (this.isStale(generation)) {
+      return;
+    }
+    this.onActivity?.(generation);
+    this.inferenceSteps += 1;
+    if (this.inferenceSteps > MAX_INFERENCE_STEPS) {
+      this.onFailed("Too many tool steps in one turn", generation);
       return;
     }
     void runLocalChatCompletions({

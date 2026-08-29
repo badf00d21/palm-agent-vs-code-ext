@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@mozaik-ai/core": "^3.14.0",
-    "@palm-agent/shared": "workspace:*"
+    "@palm-agent/shared": "workspace:*",
+    "jsonc-parser": "^3.3.1"
   }
 }

@@ -1,0 +1,131 @@
+import {
+  mergePending,
+  type PendingReview,
+  type ProposedFile,
+  type ReviewHost,
+} from "@palm-agent/agent-core";
+import type { ExtToWebview } from "@palm-agent/shared";
+
+export interface ReviewStore {
+  merge: ReviewHost["merge"];
+  apply(id: string): Promise<ExtToWebview>;
+  reject(id: string): ExtToWebview;
+  lookup(id: string, path?: string): { path: string; proposed: string } | { error: string };
+  proposedFor(posixPath: string): string | undefined;
+  onDidChangeProposed(listener: (path: string) => void): { dispose(): void };
+}
+
+export interface ReviewStoreDeps {
+  emit: (event: ExtToWebview) => void;
+  readFile: (path: string) => Promise<string>;
+  applyFiles: (files: Array<{ path: string; proposed: string }>) => Promise<void>;
+  readOpenText?: (path: string) => Promise<{ text: string; dirty: boolean } | undefined>;
+  createId?: () => string;
+}
+
+export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
+  let pending: PendingReview | undefined;
+  const createId = deps.createId ?? (() => `rev_${Math.random().toString(36).slice(2, 10)}`);
+  const listeners = new Set<(path: string) => void>();
+
+  function notifyProposedChange(path: string): void {
+    for (const listener of listeners) {
+      listener(path);
+    }
+  }
+
+  function onDidChangeProposed(listener: (path: string) => void): { dispose(): void } {
+    listeners.add(listener);
+    return {
+      dispose() {
+        listeners.delete(listener);
+      },
+    };
+  }
+
+  function merge(files: ProposedFile[]): { id: string; paths: string[] } {
+    pending = mergePending(pending, files, createId);
+    for (const file of files) {
+      notifyProposedChange(file.path);
+    }
+    deps.emit({
+      type: "diff_proposed",
+      id: pending.id,
+      files: pending.files.map((f) => ({ path: f.path })),
+    });
+    return { id: pending.id, paths: pending.files.map((f) => f.path) };
+  }
+
+  async function apply(id: string): Promise<ExtToWebview> {
+    if (id !== pending?.id) {
+      return { type: "error", message: "No pending review" };
+    }
+
+    for (const file of pending.files) {
+      const open = deps.readOpenText ? await deps.readOpenText(file.path) : undefined;
+      if (open?.dirty && open.text !== file.original) {
+        return { type: "error", message: `File changed since proposal: ${file.path}` };
+      }
+      const disk = await deps.readFile(file.path);
+      if (disk !== file.original) {
+        return { type: "error", message: `File changed since proposal: ${file.path}` };
+      }
+    }
+
+    try {
+      await deps.applyFiles(
+        pending.files.map((f) => ({ path: f.path, proposed: f.proposed })),
+      );
+    } catch (err) {
+      return { type: "error", message: String(err).slice(0, 400) };
+    }
+
+    const formerPaths = pending.files.map((f) => f.path);
+    pending = undefined;
+    for (const path of formerPaths) {
+      notifyProposedChange(path);
+    }
+    return { type: "diff_settled", id, status: "kept" };
+  }
+
+  function reject(id: string): ExtToWebview {
+    if (id !== pending?.id) {
+      return { type: "error", message: "No pending review" };
+    }
+
+    const formerPaths = pending.files.map((f) => f.path);
+    pending = undefined;
+    for (const path of formerPaths) {
+      notifyProposedChange(path);
+    }
+    return { type: "diff_settled", id, status: "undone" };
+  }
+
+  function lookup(
+    id: string,
+    path?: string,
+  ): { path: string; proposed: string } | { error: string } {
+    if (id !== pending?.id) {
+      return { error: "No pending review" };
+    }
+
+    if (path) {
+      const file = pending.files.find((f) => f.path === path);
+      if (!file) {
+        return { error: "File is not in the review" };
+      }
+      return { path: file.path, proposed: file.proposed };
+    }
+
+    const file = pending.files[0];
+    return { path: file.path, proposed: file.proposed };
+  }
+
+  function proposedFor(posixPath: string): string | undefined {
+    const normalized = posixPath.replace(/^\//, "");
+    const file = pending?.files.find((f) => f.path === normalized);
+    return file?.proposed;
+  }
+
+  return { merge, apply, reject, lookup, proposedFor, onDidChangeProposed };
+}

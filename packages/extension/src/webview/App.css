@@ -58,6 +58,67 @@ body {
   font-size: 12px;
 }
 
+.bubble.review {
+  background: var(--vscode-editorWidget-background);
+}
+
+.review-head,
+.review-actions,
+.review-file {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.review-actions {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.review-file {
+  background: none;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  padding: 2px 0;
+  font: inherit;
+  text-align: left;
+}
+
+.review-file:disabled {
+  color: inherit;
+  cursor: default;
+  opacity: 0.85;
+}
+
+.review-list {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.review-head button {
+  color: var(--vscode-foreground);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.review-actions button {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.review-head button:focus,
+.review-actions button:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
 .role {
   display: block;
   font-size: 11px;
@@ -107,4 +168,57 @@ body {
 .composer textarea:focus,
 .composer button:focus {
   outline: 1px solid var(--vscode-focusBorder);
+}
+
+.bubble.waiting {
+  opacity: 0.85;
+}
+
+.waiting-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.waiting-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.waiting-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--vscode-foreground);
+  opacity: 0.35;
+  animation: waiting-pulse 1s ease-in-out infinite;
+}
+
+.waiting-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.waiting-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.waiting-stop {
+  margin-top: 8px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+@keyframes waiting-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 0.9;
+  }
 }

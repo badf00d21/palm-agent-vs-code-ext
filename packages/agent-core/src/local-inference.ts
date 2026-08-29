@@ -10,6 +10,7 @@ import {
   type Participant,
   type Tool,
 } from "@mozaik-ai/core";
+import { parse as parseJsonc } from "jsonc-parser";
 
 export type ChatCompletionFetch = (
   url: string,
@@ -174,54 +175,70 @@ function asToolCallObject(value: unknown): ChatToolCall | null {
     rec.function && typeof rec.function === "object"
       ? (rec.function as Record<string, unknown>)
       : undefined;
-  const name = nested?.name ?? rec.name;
+  const name =
+    (typeof nested?.name === "string" && nested.name) ||
+    (typeof rec.name === "string" && rec.name) ||
+    (typeof rec.function === "string" && rec.function) ||
+    (typeof rec.tool === "string" && rec.tool) ||
+    "";
   const args = nested?.arguments ?? rec.arguments ?? rec.args ?? rec.parameters;
   const hasArgs =
     nested !== undefined
       ? "arguments" in nested || "args" in nested
       : "arguments" in rec || "args" in rec || "parameters" in rec;
-  if (typeof name !== "string" || name.length === 0 || !hasArgs) {
+  if (!name || !hasArgs) {
     return null;
   }
   return { id: typeof rec.id === "string" ? rec.id : undefined, function: { name, arguments: args } };
 }
 
+function jsonValuesFrom(text: string): unknown[] {
+  const values: unknown[] = [];
+  const consider = (slice: string) => {
+    const value = parseJsonc(slice);
+    if (value !== undefined) {
+      values.push(value);
+    }
+  };
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    consider(trimmed);
+  }
+  for (const fence of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    consider((fence[1] ?? "").trim());
+  }
+  const keyRe = /"(?:name|function|tool)"\s*:/g;
+  let match: RegExpExecArray | null;
+  let attempts = 0;
+  while ((match = keyRe.exec(text)) !== null && attempts < 16) {
+    const fromBrace = text.lastIndexOf("{", match.index);
+    const fromBracket = text.lastIndexOf("[", match.index);
+    const start = Math.max(fromBrace, fromBracket);
+    if (start >= 0) {
+      consider(text.slice(start));
+      attempts += 1;
+    }
+  }
+  return values;
+}
+
+function toolCallsFromValue(parsed: unknown): ChatToolCall[] {
+  if (Array.isArray(parsed)) {
+    return parsed.map(asToolCallObject).filter((call): call is ChatToolCall => call !== null);
+  }
+  const one = asToolCallObject(parsed);
+  return one ? [one] : [];
+}
+
 /** Qwen/Ollama often emit a tool call as JSON in `message.content` instead of `tool_calls`. */
 export function parseToolCallsFromContent(text: string): ChatToolCall[] {
-  const trimmed = text.trim();
-  if (!trimmed) {
+  if (!text.trim()) {
     return [];
   }
-  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  const candidates = [unfenced];
-  const start = unfenced.indexOf("{");
-  const end = unfenced.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    candidates.push(unfenced.slice(start, end + 1));
-  }
-  const arrayStart = unfenced.indexOf("[");
-  const arrayEnd = unfenced.lastIndexOf("]");
-  if (arrayStart >= 0 && arrayEnd > arrayStart) {
-    candidates.push(unfenced.slice(arrayStart, arrayEnd + 1));
-  }
-
-  for (const candidate of candidates) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(candidate);
-    } catch {
-      continue;
-    }
-    if (Array.isArray(parsed)) {
-      const calls = parsed.map(asToolCallObject).filter((call): call is ChatToolCall => call !== null);
-      if (calls.length > 0) {
-        return calls;
-      }
-      continue;
-    }
-    const one = asToolCallObject(parsed);
-    if (one) {
-      return [one];
+  for (const parsed of jsonValuesFrom(text)) {
+    const calls = toolCallsFromValue(parsed);
+    if (calls.length > 0) {
+      return calls;
     }
   }
   return [];

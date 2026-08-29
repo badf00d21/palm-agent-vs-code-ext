@@ -10,6 +10,7 @@
   },
   "categories": ["Other"],
   "activationEvents": [
+    "onStartupFinished",
     "onView:palmAgent.chat",
     "onCommand:agent.focus"
   ],

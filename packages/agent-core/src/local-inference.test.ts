@@ -36,6 +36,75 @@ describe("parseToolCallsFromContent", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.function?.name).toBe("get_context");
   });
+
+  it("finds a tool call after many braces without scanning each one", () => {
+    const junk = "interface X { a: { b: { c: number } } }\n".repeat(200);
+    const started = Date.now();
+    const calls = parseToolCallsFromContent(
+      `${junk}{"name":"read_file","arguments":{"path":"a.ts"}}`,
+    );
+    expect(Date.now() - started).toBeLessThan(250);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.function?.name).toBe("read_file");
+  });
+
+  it("parses Qwen { function: \"propose_edit\", arguments } in a json fence", () => {
+    const text = [
+      "Agent",
+      "```json",
+      JSON.stringify({
+        function: "propose_edit",
+        arguments: {
+          files: [
+            {
+              path: "src/abc-import.ts",
+              search: "function collectVoices(body: string, defs: VoiceDef[]) {",
+              replace: "function collectVoices(body: string, defs: VoiceDef[]) {\n  return [];\n}",
+            },
+          ],
+        },
+      }),
+      "```",
+    ].join("\n");
+    const calls = parseToolCallsFromContent(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.function?.name).toBe("propose_edit");
+    expect(calls[0]?.function?.arguments).toEqual({
+      files: [
+        {
+          path: "src/abc-import.ts",
+          search: "function collectVoices(body: string, defs: VoiceDef[]) {",
+          replace: "function collectVoices(body: string, defs: VoiceDef[]) {\n  return [];\n}",
+        },
+      ],
+    });
+  });
+
+  it("finds a fenced propose_edit after prose that contains a brace", () => {
+    const text = [
+      "Let's try this again.",
+      "",
+      "1. **Search**: `function importStandardAbc(abcNotation: string): SheetMusic {`",
+      "",
+      "```json",
+      JSON.stringify({
+        name: "propose_edit",
+        arguments: {
+          files: [
+            {
+              path: "src/abc-import.ts",
+              search: "function importStandardAbc(abcNotation: string): SheetMusic {",
+              replace: "function importStandardAbc(abcNotation: string): SheetMusic {\n  return convertToSheetMusic(parsed);\n}",
+            },
+          ],
+        },
+      }),
+      "```",
+    ].join("\n");
+    const calls = parseToolCallsFromContent(text);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.function?.name).toBe("propose_edit");
+  });
 });
 
 describe("runLocalChatCompletions", () => {
