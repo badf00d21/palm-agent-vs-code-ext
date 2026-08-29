@@ -1,11 +1,14 @@
 import * as vscode from "vscode";
+import type { AgentSession } from "@palm-agent/agent-core";
 import type { WebviewToExt } from "@palm-agent/shared";
-import { handleUserMessage } from "./echo";
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewId = "palmAgent.chat";
 
-  constructor(private readonly extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly session: AgentSession,
+  ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     webviewView.webview.options = {
@@ -14,13 +17,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
+    this.session.setSink((event) => {
+      void webviewView.webview.postMessage(event);
+    });
     webviewView.webview.onDidReceiveMessage((message: WebviewToExt) => {
       if (message.type !== "user_message") {
         return;
       }
-      for (const outgoing of handleUserMessage(message.text)) {
-        void webviewView.webview.postMessage(outgoing);
-      }
+      void this.session.startTurn(message.text);
     });
   }
 

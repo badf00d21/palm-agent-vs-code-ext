@@ -45,10 +45,25 @@
         "key": "ctrl+alt+a",
         "mac": "cmd+alt+a"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Palm Agent",
+      "properties": {
+        "palmAgent.ollamaBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434/v1",
+          "description": "Ollama Chat Completions base URL"
+        },
+        "palmAgent.model": {
+          "type": "string",
+          "default": "deepseek-v4-pro",
+          "description": "Ollama model name. Default deepseek-v4-pro is a local alias for qwen coder (Mozaik only accepts a closed name set). Do not use gpt-* names."
+        }
+      }
+    }
   },
   "scripts": {
-    "build": "pnpm build:webview && pnpm build:ext",
+    "build": "npm run build:webview && npm run build:ext",
     "build:ext": "node esbuild.mjs",
     "build:webview": "vite build --config vite.config.ts",
     "watch": "node esbuild.mjs --watch",
@@ -56,7 +71,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@palm-agent/shared": "workspace:*"
+    "@palm-agent/agent-core": "workspace:*",
+    "@palm-agent/shared": "workspace:*",
+    "@vscode/ripgrep": "^1.15.9"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

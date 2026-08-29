@@ -10,5 +10,16 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     }
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  },
+  "dependencies": {
+    "@mozaik-ai/core": "^3.14.0",
+    "@palm-agent/shared": "workspace:*"
   }
 }

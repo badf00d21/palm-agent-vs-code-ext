@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExtToWebview } from "@palm-agent/shared";
+import { applyExtMessage, type ChatLine } from "./chatMessages";
 import { getVsCodeApi } from "./vscode";
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  text: string;
-}
-
 export function App() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatLine[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -17,16 +13,12 @@ export function App() {
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtToWebview>) => {
       const msg = event.data;
-      if (msg.type === "assistant_delta") {
-        setMessages((prev) => [...prev, { role: "assistant", text: msg.text }]);
-        return;
-      }
-      if (msg.type === "error") {
-        setMessages((prev) => [...prev, { role: "assistant", text: `Error: ${msg.message}` }]);
+      if (msg.type === "done") {
         setBusy(false);
         return;
       }
-      if (msg.type === "done") {
+      setMessages((prev) => applyExtMessage(prev, msg));
+      if (msg.type === "error") {
         setBusy(false);
       }
     };
@@ -50,15 +42,25 @@ export function App() {
     vscodeRef.current.postMessage({ type: "user_message", text });
   };
 
+  const roleLabel = (role: ChatLine["role"]) => {
+    if (role === "user") {
+      return "You";
+    }
+    if (role === "tool") {
+      return "Tool";
+    }
+    return "Agent";
+  };
+
   return (
     <div className="app">
       <div className="messages" ref={listRef}>
         {messages.length === 0 ? (
-          <p className="empty">Send a message. v0 echoes it back through the extension host.</p>
+          <p className="empty">Ask about a file in this workspace.</p>
         ) : (
           messages.map((message, index) => (
             <article key={`${message.role}-${index}`} className={`bubble ${message.role}`}>
-              <span className="role">{message.role === "user" ? "You" : "Agent"}</span>
+              <span className="role">{roleLabel(message.role)}</span>
               <p>{message.text}</p>
             </article>
           ))

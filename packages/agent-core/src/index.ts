@@ -1,4 +1,6 @@
-/**
- * Editor-free Mozaik runtime. Wired in v1 — no `vscode` imports in this package.
- */
-export {};
+export type { ModelConfig } from "./config.js";
+export { DEFAULT_BASE_URL, DEFAULT_MODEL, isForbiddenModelName } from "./config.js";
+export type { AgentSession, SessionEventSink } from "./session.js";
+export { createAgentSession } from "./session.js";
+export type { DirEntry, EditorContext, SearchHit, WorkspacePort } from "./port.js";
+export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./paths.js";
