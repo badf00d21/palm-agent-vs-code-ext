@@ -1,0 +1,104 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.messages {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty {
+  margin: auto;
+  opacity: 0.7;
+  text-align: center;
+  max-width: 28ch;
+}
+
+.bubble {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.bubble.user {
+  background: var(--vscode-input-background);
+}
+
+.bubble.assistant {
+  background: var(--vscode-editor-background);
+}
+
+.role {
+  display: block;
+  font-size: 11px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  padding: 8px;
+  font: inherit;
+}
+
+.composer button {
+  align-self: flex-end;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.composer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.composer textarea:focus,
+.composer button:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}

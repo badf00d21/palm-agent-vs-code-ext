@@ -1,0 +1,74 @@
+{
+  "name": "palm-agent",
+  "displayName": "Palm Agent",
+  "description": "In-editor coding agent (Mozaik runtime)",
+  "version": "0.0.1",
+  "publisher": "palm-agent",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onView:palmAgent.chat",
+    "onCommand:agent.focus"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "palm-agent",
+          "title": "Palm Agent",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "palm-agent": [
+        {
+          "type": "webview",
+          "id": "palmAgent.chat",
+          "name": "Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agent.focus",
+        "title": "Palm Agent: Focus Chat"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "agent.focus",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "pnpm build:webview && pnpm build:ext",
+    "build:ext": "node esbuild.mjs",
+    "build:webview": "vite build --config vite.config.ts",
+    "watch": "node esbuild.mjs --watch",
+    "watch:webview": "vite build --config vite.config.ts --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@palm-agent/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.6",
+    "@types/vscode": "^1.90.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "esbuild": "^0.25.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.4",
+    "vitest": "^3.1.2"
+  }
+}

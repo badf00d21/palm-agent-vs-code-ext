@@ -1,0 +1,13 @@
+{
+  "name": "coding-palm-agent",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "watch": "pnpm -r --parallel --if-present watch"
+  }
+}

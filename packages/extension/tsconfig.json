@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node", "vscode"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/webview", "src/**/*.test.ts"]
+}
