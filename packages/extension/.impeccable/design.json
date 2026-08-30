@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-30T14:27:00+02:00",
+  "title": "Design System: Palm Agent",
+  "extensions": {
+    "colorMeta": {
+      "sidebar-bg": {
+        "role": "neutral",
+        "displayName": "Sidebar ground",
+        "canonical": "var(--vscode-sideBar-background)",
+        "tonalRamp": [
+          "oklch(18% 0.01 260)",
+          "oklch(28% 0.01 260)",
+          "oklch(38% 0.008 260)",
+          "oklch(48% 0.006 260)",
+          "oklch(62% 0.005 260)",
+          "oklch(76% 0.004 260)",
+          "oklch(88% 0.003 260)",
+          "oklch(96% 0.002 260)"
+        ]
+      },
+      "editor-bg": {
+        "role": "neutral",
+        "displayName": "Editor ground",
+        "canonical": "var(--vscode-editor-background)",
+        "tonalRamp": [
+          "oklch(16% 0.012 250)",
+          "oklch(26% 0.01 250)",
+          "oklch(36% 0.008 250)",
+          "oklch(50% 0.006 250)",
+          "oklch(64% 0.005 250)",
+          "oklch(78% 0.003 250)",
+          "oklch(90% 0.002 250)",
+          "oklch(97% 0.001 250)"
+        ]
+      },
+      "input-bg": {
+        "role": "neutral",
+        "displayName": "Input ground",
+        "canonical": "var(--vscode-input-background)",
+        "tonalRamp": [
+          "oklch(20% 0.01 260)",
+          "oklch(30% 0.008 260)",
+          "oklch(40% 0.006 260)",
+          "oklch(52% 0.005 260)",
+          "oklch(66% 0.004 260)",
+          "oklch(80% 0.003 260)",
+          "oklch(91% 0.002 260)",
+          "oklch(97% 0.001 260)"
+        ]
+      },
+      "widget-bg": {
+        "role": "neutral",
+        "displayName": "Widget ground",
+        "canonical": "var(--vscode-editorWidget-background)",
+        "tonalRamp": [
+          "oklch(22% 0.012 255)",
+          "oklch(32% 0.01 255)",
+          "oklch(42% 0.008 255)",
+          "oklch(54% 0.006 255)",
+          "oklch(68% 0.004 255)",
+          "oklch(82% 0.003 255)",
+          "oklch(92% 0.002 255)",
+          "oklch(97% 0.001 255)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Foreground",
+        "canonical": "var(--vscode-foreground)",
+        "tonalRamp": [
+          "oklch(22% 0.01 260)",
+          "oklch(34% 0.008 260)",
+          "oklch(46% 0.006 260)",
+          "oklch(58% 0.005 260)",
+          "oklch(70% 0.004 260)",
+          "oklch(80% 0.003 260)",
+          "oklch(90% 0.002 260)",
+          "oklch(97% 0.001 260)"
+        ]
+      },
+      "input-fg": {
+        "role": "neutral",
+        "displayName": "Input foreground",
+        "canonical": "var(--vscode-input-foreground)",
+        "tonalRamp": [
+          "oklch(22% 0.01 260)",
+          "oklch(34% 0.008 260)",
+          "oklch(46% 0.006 260)",
+          "oklch(58% 0.005 260)",
+          "oklch(70% 0.004 260)",
+          "oklch(80% 0.003 260)",
+          "oklch(90% 0.002 260)",
+          "oklch(97% 0.001 260)"
+        ]
+      },
+      "button-bg": {
+        "role": "primary",
+        "displayName": "Button fill",
+        "canonical": "var(--vscode-button-background)",
+        "tonalRamp": [
+          "oklch(28% 0.08 250)",
+          "oklch(38% 0.09 250)",
+          "oklch(48% 0.1 250)",
+          "oklch(56% 0.11 250)",
+          "oklch(64% 0.09 250)",
+          "oklch(74% 0.06 250)",
+          "oklch(86% 0.03 250)",
+          "oklch(95% 0.01 250)"
+        ]
+      },
+      "button-fg": {
+        "role": "primary",
+        "displayName": "Button label",
+        "canonical": "var(--vscode-button-foreground)",
+        "tonalRamp": [
+          "oklch(20% 0.01 250)",
+          "oklch(35% 0.008 250)",
+          "oklch(50% 0.006 250)",
+          "oklch(65% 0.004 250)",
+          "oklch(78% 0.003 250)",
+          "oklch(88% 0.002 250)",
+          "oklch(94% 0.001 250)",
+          "oklch(99% 0.001 250)"
+        ]
+      },
+      "link": {
+        "role": "primary",
+        "displayName": "Link",
+        "canonical": "var(--vscode-textLink-foreground)",
+        "tonalRamp": [
+          "oklch(35% 0.1 250)",
+          "oklch(45% 0.11 250)",
+          "oklch(55% 0.12 250)",
+          "oklch(62% 0.12 250)",
+          "oklch(70% 0.1 250)",
+          "oklch(80% 0.06 250)",
+          "oklch(90% 0.03 250)",
+          "oklch(96% 0.01 250)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "var(--vscode-widget-border)",
+        "tonalRamp": [
+          "oklch(25% 0.01 260)",
+          "oklch(35% 0.008 260)",
+          "oklch(45% 0.006 260)",
+          "oklch(55% 0.005 260)",
+          "oklch(68% 0.004 260)",
+          "oklch(80% 0.003 260)",
+          "oklch(90% 0.002 260)",
+          "oklch(96% 0.001 260)"
+        ]
+      },
+      "panel-border": {
+        "role": "neutral",
+        "displayName": "Panel hairline",
+        "canonical": "var(--vscode-panel-border)",
+        "tonalRamp": [
+          "oklch(25% 0.01 260)",
+          "oklch(35% 0.008 260)",
+          "oklch(45% 0.006 260)",
+          "oklch(55% 0.005 260)",
+          "oklch(68% 0.004 260)",
+          "oklch(80% 0.003 260)",
+          "oklch(90% 0.002 260)",
+          "oklch(96% 0.001 260)"
+        ]
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "Focus ring",
+        "canonical": "var(--vscode-focusBorder)",
+        "tonalRamp": [
+          "oklch(40% 0.1 230)",
+          "oklch(50% 0.11 230)",
+          "oklch(58% 0.12 230)",
+          "oklch(66% 0.11 230)",
+          "oklch(74% 0.08 230)",
+          "oklch(84% 0.04 230)",
+          "oklch(92% 0.02 230)",
+          "oklch(97% 0.01 230)"
+        ]
+      },
+      "list-hover": {
+        "role": "neutral",
+        "displayName": "List hover",
+        "canonical": "var(--vscode-list-hoverBackground)",
+        "tonalRamp": [
+          "oklch(24% 0.012 260)",
+          "oklch(34% 0.01 260)",
+          "oklch(44% 0.008 260)",
+          "oklch(56% 0.006 260)",
+          "oklch(70% 0.004 260)",
+          "oklch(82% 0.003 260)",
+          "oklch(92% 0.002 260)",
+          "oklch(97% 0.001 260)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Body", "purpose": "User and assistant prose in the sidebar." },
+      "label": { "displayName": "Label", "purpose": "Uppercase role over each bubble." },
+      "tool": { "displayName": "Tool log", "purpose": "Tool rows; editor monospace." }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "waiting-pulse",
+        "value": "1s ease-in-out infinite",
+        "purpose": "Three 5px dots while the model is loading; delays 0 / 0.15s / 0.3s."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Host-colored action: Send, Keep All, Undo All, Review, Stop.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Keep All</button>",
+      "css": ".ds-btn-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; font: inherit; cursor: pointer; } .ds-btn-primary:focus-visible { outline: 1px solid var(--vscode-focusBorder); } .ds-btn-primary:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Composer textarea",
+      "kind": "input",
+      "refersTo": "input-composer",
+      "description": "Pinned message field; 3 rows, no resize.",
+      "html": "<textarea class=\"ds-input-composer\" rows=\"3\" placeholder=\"Message Palm Agent\"></textarea>",
+      "css": ".ds-input-composer { width: 100%; resize: none; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 8px; font: inherit; } .ds-input-composer:focus-visible { outline: 1px solid var(--vscode-focusBorder); }"
+    },
+    {
+      "name": "User bubble",
+      "kind": "card",
+      "refersTo": "bubble-user",
+      "description": "Human turn on the input plane.",
+      "html": "<article class=\"ds-bubble ds-bubble-user\"><span class=\"ds-role\">You</span><p>refactor collectVoices</p></article>",
+      "css": ".ds-bubble { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vscode-widget-border, transparent); } .ds-bubble-user { background: var(--vscode-input-background); color: var(--vscode-foreground); } .ds-role { display: block; font-size: 11px; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; } .ds-bubble p { margin: 0; white-space: pre-wrap; }"
+    },
+    {
+      "name": "Assistant bubble",
+      "kind": "card",
+      "refersTo": "bubble-assistant",
+      "description": "Streamed prose on the editor plane.",
+      "html": "<article class=\"ds-bubble ds-bubble-assistant\"><span class=\"ds-role\">Agent</span><p>I'll read the file first.</p></article>",
+      "css": ".ds-bubble { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vscode-widget-border, transparent); } .ds-bubble-assistant { background: var(--vscode-editor-background); color: var(--vscode-foreground); } .ds-role { display: block; font-size: 11px; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; } .ds-bubble p { margin: 0; white-space: pre-wrap; }"
+    },
+    {
+      "name": "Tool row",
+      "kind": "custom",
+      "refersTo": "bubble-tool",
+      "description": "Log line for a tool call; dimmer while running.",
+      "html": "<article class=\"ds-bubble ds-bubble-tool ds-bubble-tool-running\"><span class=\"ds-role\">Tool</span><p>read_file  src/abc-import.ts</p></article>",
+      "css": ".ds-bubble { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vscode-widget-border, transparent); } .ds-bubble-tool { opacity: 0.75; font-family: var(--vscode-editor-font-family); font-size: 12px; } .ds-bubble-tool-running { opacity: 0.55; } .ds-role { display: block; font-size: 11px; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; } .ds-bubble p { margin: 0; }"
+    },
+    {
+      "name": "Review card",
+      "kind": "card",
+      "refersTo": "bubble-review",
+      "description": "Pending SEARCH/REPLACE review; Keep / Undo / Review.",
+      "html": "<article class=\"ds-bubble ds-bubble-review\"><span class=\"ds-role\">Review</span><div class=\"ds-review-head\"><button type=\"button\">1 file</button></div><ul class=\"ds-review-list\"><li><button type=\"button\" class=\"ds-review-file\">src/abc-import.ts</button></li></ul><div class=\"ds-review-actions\"><button type=\"button\" class=\"ds-btn-primary\">Undo All</button><button type=\"button\" class=\"ds-btn-primary\">Keep All</button></div></article>",
+      "css": ".ds-bubble { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vscode-widget-border, transparent); } .ds-bubble-review { background: var(--vscode-editorWidget-background); color: var(--vscode-foreground); } .ds-role { display: block; font-size: 11px; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; } .ds-review-head button { color: var(--vscode-foreground); background: none; border: none; padding: 0; font: inherit; cursor: pointer; } .ds-review-head button:focus-visible { outline: 1px solid var(--vscode-focusBorder); } .ds-review-list { margin: 6px 0 0; padding-left: 16px; } .ds-review-file { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; padding: 2px 0; font: inherit; } .ds-review-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; } .ds-btn-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; font: inherit; cursor: pointer; } .ds-btn-primary:focus-visible { outline: 1px solid var(--vscode-focusBorder); }"
+    },
+    {
+      "name": "Suggestion row",
+      "kind": "chip",
+      "refersTo": "suggest-item-hover",
+      "description": "@ file complete row on the widget plane.",
+      "html": "<ul class=\"ds-suggest\" role=\"listbox\"><li><button type=\"button\" class=\"ds-suggest-item\" aria-selected=\"true\">packages/extension/package.json</button></li></ul>",
+      "css": ".ds-suggest { list-style: none; margin: 0; padding: 4px; max-height: 160px; overflow: auto; border: 1px solid var(--vscode-widget-border, transparent); background: var(--vscode-editorWidget-background); } .ds-suggest-item { display: block; width: 100%; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 4px 6px; cursor: pointer; } .ds-suggest-item[aria-selected=\"true\"], .ds-suggest-item:hover { background: var(--vscode-list-hoverBackground); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Hosted Workbench",
+    "overview": "The chat lives inside VS Code. Paint, type, focus rings, and primary buttons are the host's. Palm Agent does not ship a brand palette; it maps roles onto var(--vscode-*) so Dark+, Light+, and custom themes stay coherent.\n\nThe layout is a Cursor-like sidebar: streaming prose, dim tool rows, a review card with Keep / Undo / Review. Custom craft is limited to 6px message cards and density. There is no marketing chrome, neon agent skin, or private color system.",
+    "keyCharacteristics": [
+      "Host tokens only — no hardcoded hex",
+      "6px cards for messages and review; actions stay native VS Code buttons",
+      "Flat surfaces now; shadow only later, and only on hover or focus",
+      "Tool rows read as a log (editor mono, 12px); prose uses the workbench UI font"
+    ],
+    "rules": [
+      { "name": "The Host Paint Rule", "body": "Do not introduce a hex, OKLCH, or brand accent. If a new surface needs color, pick an existing --vscode-* role.", "section": "colors" },
+      { "name": "The Two Voices Rule", "body": "Prose uses the UI font. Tool traces use the editor font. Do not invert them.", "section": "typography" },
+      { "name": "The Sidebar Column Rule", "body": "One column, composer glued to the bottom. Do not add a header brand bar or a second rail.", "section": "layout" },
+      { "name": "The Resting-Flat Rule", "body": "At rest, no shadow. A later hover/focus shadow must still use host colors, not a drop-shadow brand glow.", "section": "elevation" },
+      { "name": "The One Radius Rule", "body": "6px is the only custom radius. Buttons and the textarea stay square like VS Code.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do paint with var(--vscode-*) roles already in this file.",
+      "Do keep message cards at 6px and host buttons square.",
+      "Do treat tool rows as a log (editor font, 12px, reduced opacity).",
+      "Do keep the composer at the bottom of a single column."
+    ],
+    "donts": [
+      "Don't ship a brand hex, gradient, or illustration in the chat.",
+      "Don't add resting box-shadows to bubbles.",
+      "Don't invent a display typeface or a header logo bar.",
+      "Don't attach file-body chips as a visual pattern (product: @ is path text only)."
+    ]
+  }
+}

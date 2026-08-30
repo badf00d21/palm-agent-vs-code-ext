@@ -25,7 +25,7 @@ Pravilo iz `AGENTS.md`: fakt o agentu/loop-u ostaje ovde; fakt o editoru ide u `
 
 1. Extension pravi `WorkspacePort` (fs, ripgrep, aktivni editor) i `ReviewHost` (pending review + `WorkspaceEdit`).
 2. `createAgentSession(port, config, sink, reviewHost)` diže `AgenticEnvironment`, `EditorAgent` i `UIBridge`.
-3. `startTurn` šalje user tekst na bus. Agent zove tool-ove; `propose_edit` samo predlaže (ne piše disk).
+3. `startTurn` šalje user tekst na bus. Agent zove read-only tool-ove. Izmene model piše kao aider SEARCH/REPLACE u `content`; jezgro to pretvara u interni `propose_edit` (ne piše disk). `propose_edit` nije u Ollama `tools` nizu.
 4. Lokalni model ide na Chat Completions (`OPENAI_BASE_URL`, default Ollama). Ime modela ne sme biti `gpt-*` / `o1`–`o9` / `text-*` — Mozaik bi to rutirao na Responses API.
 5. Tool output ide modelu **sirov** — Mozaikov `executeFunctionCall` je namerno zaobiđen jer JSON.stringify-uje svaki output (model bi čitao kod kao escaped jedan red). Greške tool-ova (nepoznat tool, loš JSON u argumentima, throw iz invoke) vraćaju se modelu kao output tog poziva da se sam ispravi — ne obaraju turn.
 6. Prozu koju model napiše uz native tool call UIBridge prosleđuje webview-u kao `assistant_delta` (SemanticEvent `assistant_narration`); u kontekst ne ulazi.
@@ -40,11 +40,20 @@ Default model: `gemma4:12b` (Ollama Chat Completions; pouzdan tool-format). Olla
 | `list_dir` | jedan nivo |
 | `search` | sadržaj, cap 50 |
 | `get_context` | aktivni fajl + selekcija |
-| `propose_edit` | literalni SEARCH/REPLACE na postojećem fajlu; human Keep/Undo |
+| `propose_edit` | interni invoke: literalni SEARCH/REPLACE; human Keep/Undo. Model ga ne zove kao tool. |
 
-`search` u `propose_edit` je tačan substring iz `read_file`, ne regex i ne `{[^}]*}` wildcard.
+`SEARCH` je tačan substring iz `read_file`, ne regex i ne `{[^}]*}` wildcard. Format:
 
-`read_file` / `propose_edit` prihvataju i samo ime fajla (`abc-import.ts`) ako je jedinstveno. `read_file` može `start_line` / `end_line` (1-based); telo je sirovi slice, header `[lines: a-b of N]` se ne kopira u SEARCH. Ako SEARCH promaši, a u fajlu postoji jedna funkcija tog imena, tool vrati njen tačan tekst — ne primenjuje izmenu sam. Matcher izjednačava `\n` / `\r\n` / `\r`.
+```
+path/to/file
+<<<<<<< SEARCH
+old
+=======
+new
+>>>>>>> REPLACE
+```
+
+`read_file` prihvata i samo ime fajla (`abc-import.ts`) ako je jedinstveno. `start_line` / `end_line` su 1-based; telo je sirovi slice, header `[lines: a-b of N]` se ne kopira u SEARCH. `start_line` bez `end_line` vraća najviše 80 linija. Ako SEARCH promaši, a u fajlu postoji jedna funkcija tog imena, tool vrati njen tačan tekst — ne primenjuje izmenu sam. Matcher izjednačava `\n` / `\r\n` / `\r`.
 
 ## Testovi
 
