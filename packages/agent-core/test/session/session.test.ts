@@ -17,10 +17,13 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
   };
 }
 
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+function sseResponse(deltas: unknown[]): Response {
+  const body =
+    deltas.map((delta) => `data: ${JSON.stringify({ choices: [delta] })}\n\n`).join("") +
+    "data: [DONE]\n\n";
+  return new Response(body, {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/event-stream" },
   });
 }
 
@@ -66,27 +69,24 @@ describe("createAgentSession inference failures", () => {
     globalThis.fetch = (async () => {
       posts += 1;
       if (posts === 1) {
-        return jsonResponse({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: null,
-                tool_calls: [
-                  {
-                    id: "call_echo",
-                    type: "function",
-                    function: { name: "read_file", arguments: '{"path":"echo.ts"}' },
-                  },
-                ],
-              },
+        return sseResponse([
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_echo",
+                  function: { name: "read_file", arguments: '{"path":"echo.ts"}' },
+                },
+              ],
             },
-          ],
-        });
+            finish_reason: "tool_calls",
+          },
+        ]);
       }
-      return jsonResponse({
-        choices: [{ message: { role: "assistant", content: "echo.ts exports echo" } }],
-      });
+      return sseResponse([
+        { delta: { content: "echo.ts exports echo" }, finish_reason: "stop" },
+      ]);
     }) as typeof fetch;
 
     const events: ExtToWebview[] = [];
@@ -117,6 +117,7 @@ describe("createAgentSession inference failures", () => {
         id: "call_unknown",
         status: "running",
       },
+      { type: "assistant_delta", text: "echo.ts exports echo" },
       { type: "assistant_delta", text: "echo.ts exports echo" },
       { type: "done" },
     ]);
