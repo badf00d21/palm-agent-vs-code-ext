@@ -8,6 +8,7 @@ import {
 } from "@palm-agent/agent-core";
 import type { ExtToWebview } from "@palm-agent/shared";
 import * as vscode from "vscode";
+import { createContextWindow } from "./contextWindow";
 import { createReviewStore, type ReviewStore } from "./reviewStore";
 import { createVsCodeWorkspacePort } from "./workspacePort";
 
@@ -79,8 +80,20 @@ export function createSessionHost(log?: {
   const port = createVsCodeWorkspacePort();
   const trace = (line: string): void => log?.appendLine(`[agent] ${line}`);
   let rawSink: (event: ExtToWebview) => void = () => undefined;
+  const contextWindow = createContextWindow({
+    fetchImpl: fetch,
+    baseUrl: () => readModelConfig().baseUrl,
+    model: () => readModelConfig().model,
+  });
   // Every outgoing event passes through here so the trace shows what the webview got.
   const emit = (event: ExtToWebview): void => {
+    if (event.type === "context_usage") {
+      void contextWindow.attachMax(event.used).then((full) => {
+        trace(`event ${full.type} used=${full.used} max=${full.max ?? "null"}`);
+        rawSink(full);
+      });
+      return;
+    }
     trace(`event ${event.type}${event.type === "error" ? `: ${event.message.slice(0, 160)}` : ""}`);
     rawSink(event);
   };
