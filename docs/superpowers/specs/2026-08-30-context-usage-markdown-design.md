@@ -1,7 +1,7 @@
 # Context usage + markdown chat — design spec
 
 **Datum:** 2026-08-30  
-**Status:** predlog — čeka review  
+**Status:** odobren  
 **Nastavlja:** v3 chat UX (sidebar composer, `assistant_delta`)  
 **Ne pokriva:** syntax highlight, tabele, clear-context, boja na 90%, model picker, advertised `/api/show` window, char-count estimate
 
