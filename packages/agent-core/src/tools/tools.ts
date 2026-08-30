@@ -219,7 +219,7 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
             }
             text = result.text;
           }
-          proposed.push({ path: storedPath, original: located.text, proposed: text });
+          proposed.push({ path: storedPath, original: located.text, proposed: text, kind: "edit" });
         }
         const merged = reviewHost.merge(proposed);
         return `Proposed review ${merged.id}: ${merged.paths.join(", ")}`;

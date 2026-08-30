@@ -5,9 +5,10 @@ const a = (proposed: string): ProposedFile => ({
   path: "a.ts",
   original: "old-a",
   proposed,
+  kind: "edit",
 });
 
-const b: ProposedFile = { path: "b.ts", original: "old-b", proposed: "new-b" };
+const b: ProposedFile = { path: "b.ts", original: "old-b", proposed: "new-b", kind: "edit" };
 
 describe("mergePending", () => {
   it("creates an id and one path on an empty store", () => {

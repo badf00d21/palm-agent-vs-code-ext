@@ -1,7 +1,10 @@
+import type { EditKind } from "./edit-blocks.js";
+
 export interface ProposedFile {
   path: string;
   original: string;
   proposed: string;
+  kind: EditKind;
 }
 
 export interface PendingReview {
