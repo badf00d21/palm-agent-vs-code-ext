@@ -40,18 +40,18 @@ function ReviewCard({
       {open ? (
         <>
           <ul className="review-list">
-            {message.files.map((path) => (
-              <li key={path}>
+            {message.files.map((file) => (
+              <li key={file.path}>
                 {pending ? (
                   <button
                     type="button"
                     className="review-file"
-                    onClick={() => postMessage({ type: "open_diff", id: message.id, path })}
+                    onClick={() => postMessage({ type: "open_diff", id: message.id, path: file.path })}
                   >
-                    {path}
+                    {file.path}
                   </button>
                 ) : (
-                  <span>{path}</span>
+                  <span>{file.path}</span>
                 )}
               </li>
             ))}
