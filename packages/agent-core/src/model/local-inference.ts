@@ -12,6 +12,7 @@ import {
   type Tool,
 } from "@mozaik-ai/core";
 import { parse as parseJsonc } from "jsonc-parser";
+import { readSseChatCompletion } from "./chat-stream.js";
 
 /** Assistant prose that arrived alongside native tool calls — UI-only, never context. */
 export const NARRATION_EVENT = "assistant_narration";
@@ -303,14 +304,6 @@ function deliverCompletion(
     `completion: content=${(message.content ?? "").length}ch reasoning=${reasoning.length}ch nativeCalls=${nativeToolCalls.length} totalCalls=${toolCalls.length} finish=${choice?.finish_reason ?? "?"}`,
   );
   if (toolCalls.length > 0) {
-    // Narrate only next to native tool_calls: content-JSON calls ARE the content.
-    const narration = nativeToolCalls.length > 0 ? (message.content ?? "").trim() : "";
-    if (narration) {
-      params.environment.deliverSemanticEvent(
-        params.caller,
-        new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text: narration }),
-      );
-    }
     for (const call of toolCalls) {
       const item = FunctionCallItem.rehydrate({
         callId: call.id ?? `call_s${++syntheticCallCounter}`,
@@ -345,6 +338,7 @@ export async function runLocalChatCompletions(
       messages: mapContextToChatMessages(params.context),
       max_tokens: MAX_OUTPUT_TOKENS,
     };
+    body.stream = true;
     if (params.tools.length > 0) {
       body.tools = mapTools(params.tools);
       body.tool_choice = "auto";
@@ -367,8 +361,34 @@ export async function runLocalChatCompletions(
     if (!response.ok) {
       throw await readHttpError(response);
     }
-    const payload = (await response.json()) as ChatCompletionResponse;
-    deliverCompletion(params, payload);
+    const assembled = await readSseChatCompletion(
+      response,
+      (text) => {
+        if (!isCurrentTurn(params) || !text) {
+          return;
+        }
+        params.environment.deliverSemanticEvent(
+          params.caller,
+          new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text }),
+        );
+      },
+      params.signal,
+    );
+    if (!isCurrentTurn(params)) {
+      params.trace?.("completion dropped: stale turn");
+      return;
+    }
+    deliverCompletion(params, {
+      choices: [
+        {
+          finish_reason: assembled.finishReason,
+          message: {
+            content: assembled.content,
+            tool_calls: assembled.toolCalls,
+          },
+        },
+      ],
+    });
   } catch (error) {
     params.trace?.(
       `inference error: ${(error instanceof Error ? error.message : String(error)).slice(0, 160)}`,

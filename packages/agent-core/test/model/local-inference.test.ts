@@ -9,18 +9,19 @@ import {
 } from "@mozaik-ai/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  NARRATION_EVENT,
   parseToolCallsFromContent,
   runLocalChatCompletions,
-  type NarrationPayload,
 } from "../../src/model/local-inference.js";
 
 const BASE_URL = "http://localhost:11434/v1";
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
+function sseResponse(deltas: unknown[]): Response {
+  const body =
+    deltas.map((delta) => `data: ${JSON.stringify({ choices: [delta] })}\n\n`).join("") +
+    "data: [DONE]\n\n";
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
   });
 }
 
@@ -128,6 +129,7 @@ describe("runLocalChatCompletions", () => {
 
     const delivered: ModelMessageItem[] = [];
     const environment = {
+      deliverSemanticEvent: () => undefined,
       deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
         delivered.push(item);
       },
@@ -151,12 +153,13 @@ describe("runLocalChatCompletions", () => {
       },
       fetchImpl: async (url, init) => {
         expect(String(url)).toBe(`${BASE_URL}/chat/completions`);
-        const body = JSON.parse(String(init?.body)) as { model: string; max_tokens: number };
+        const body = JSON.parse(String(init?.body)) as { stream?: boolean; model: string; max_tokens: number };
+        expect(body.stream).toBe(true);
         expect(body.model).toBe("deepseek-v4-pro");
         expect(body.max_tokens).toBe(4096);
-        return jsonResponse({
-          choices: [{ message: { role: "assistant", content: "hello from qwen" } }],
-        });
+        return sseResponse([
+          { delta: { role: "assistant", content: "hello from qwen" }, finish_reason: "stop" },
+        ]);
       },
     });
 
@@ -171,6 +174,7 @@ describe("runLocalChatCompletions", () => {
 
     let failed = "";
     const environment = {
+      deliverSemanticEvent: () => undefined,
       deliverModelMessage: () => {
         throw new Error("should not deliver");
       },
@@ -208,6 +212,7 @@ describe("runLocalChatCompletions", () => {
       context: ModelContext.create("test"),
       tools: [],
       environment: {
+        deliverSemanticEvent: () => undefined,
         deliverModelMessage: () => {
           delivered = true;
         },
@@ -249,6 +254,7 @@ describe("runLocalChatCompletions", () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const calls: FunctionCallItem[] = [];
     const environment = {
+      deliverSemanticEvent: () => undefined,
       deliverModelMessage: () => {
         throw new Error("should not deliver text");
       },
@@ -267,16 +273,15 @@ describe("runLocalChatCompletions", () => {
         throw new Error("should not fail");
       },
       fetchImpl: async () =>
-        jsonResponse({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: '{"name": "search", "arguments": {"glob": "*.py", "query": "def"}}',
-              },
+        sseResponse([
+          {
+            delta: {
+              role: "assistant",
+              content: '{"name": "search", "arguments": {"glob": "*.py", "query": "def"}}',
             },
-          ],
-        }),
+            finish_reason: "stop",
+          },
+        ]),
     });
 
     expect(calls).toHaveLength(1);
@@ -295,6 +300,7 @@ describe("runLocalChatCompletions", () => {
       context: ModelContext.create("test"),
       tools: [],
       environment: {
+        deliverSemanticEvent: () => undefined,
         deliverModelMessage: () => {
           delivered = true;
         },
@@ -309,9 +315,9 @@ describe("runLocalChatCompletions", () => {
       signal: controller.signal,
       fetchImpl: async () => {
         controller.abort();
-        return jsonResponse({
-          choices: [{ message: { role: "assistant", content: "late" } }],
-        });
+        return sseResponse([
+          { delta: { role: "assistant", content: "late" }, finish_reason: "stop" },
+        ]);
       },
     });
 
@@ -329,6 +335,7 @@ describe("runLocalChatCompletions", () => {
       context: ModelContext.create("test"),
       tools: [],
       environment: {
+        deliverSemanticEvent: () => undefined,
         deliverModelMessage: () => {
           delivered = true;
         },
@@ -341,11 +348,9 @@ describe("runLocalChatCompletions", () => {
         failed = message;
       },
       fetchImpl: async () =>
-        jsonResponse({
-          choices: [
-            { finish_reason: "length", message: { role: "assistant", content: "" } },
-          ],
-        }),
+        sseResponse([
+          { delta: { role: "assistant", content: "" }, finish_reason: "length" },
+        ]),
     });
 
     expect(delivered).toBe(false);
@@ -362,6 +367,7 @@ describe("runLocalChatCompletions", () => {
       context: ModelContext.create("test"),
       tools: [],
       environment: {
+        deliverSemanticEvent: () => undefined,
         deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
           delivered.push(item);
         },
@@ -374,9 +380,9 @@ describe("runLocalChatCompletions", () => {
         failed = message;
       },
       fetchImpl: async () =>
-        jsonResponse({
-          choices: [{ finish_reason: "stop", message: { role: "assistant", content: "" } }],
-        }),
+        sseResponse([
+          { delta: { role: "assistant", content: "" }, finish_reason: "stop" },
+        ]),
     });
 
     expect(failed).toBe("");
@@ -409,28 +415,25 @@ describe("runLocalChatCompletions", () => {
         throw new Error("should not fail");
       },
       fetchImpl: async () =>
-        jsonResponse({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: "Reading the file first.",
-                tool_calls: [
-                  {
-                    id: "call_1",
-                    type: "function",
-                    function: { name: "read_file", arguments: '{"path":"a.ts"}' },
-                  },
-                ],
-              },
+        sseResponse([
+          {
+            delta: {
+              role: "assistant",
+              content: "Reading the file first.",
+              tool_calls: [
+                {
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "read_file", arguments: '{"path":"a.ts"}' },
+                },
+              ],
             },
-          ],
-        }),
+            finish_reason: "stop",
+          },
+        ]),
     });
 
-    expect(narrations).toHaveLength(1);
-    expect(narrations[0]?.getType()).toBe(NARRATION_EVENT);
-    expect((narrations[0]?.data as NarrationPayload).text).toBe("Reading the file first.");
+    expect(narrations).toHaveLength(0);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.callId).toBe("call_1");
   });
@@ -461,16 +464,15 @@ describe("runLocalChatCompletions", () => {
         throw new Error("should not fail");
       },
       fetchImpl: async () =>
-        jsonResponse({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: '{"name": "search", "arguments": {"query": "def"}}',
-              },
+        sseResponse([
+          {
+            delta: {
+              role: "assistant",
+              content: '{"name": "search", "arguments": {"query": "def"}}',
             },
-          ],
-        }),
+            finish_reason: "stop",
+          },
+        ]),
     });
 
     expect(narrations).toEqual([]);
@@ -499,16 +501,15 @@ describe("runLocalChatCompletions", () => {
         throw new Error("should not fail");
       },
       fetchImpl: async () =>
-        jsonResponse({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: '{"name": "search", "arguments": {"query": "def"}}',
-              },
+        sseResponse([
+          {
+            delta: {
+              role: "assistant",
+              content: '{"name": "search", "arguments": {"query": "def"}}',
             },
-          ],
-        }),
+            finish_reason: "stop",
+          },
+        ]),
     };
 
     await runLocalChatCompletions({ ...params, context: ModelContext.create("one") });
@@ -518,5 +519,82 @@ describe("runLocalChatCompletions", () => {
     expect(calls[0]?.callId).toMatch(/^call_s\d+$/);
     expect(calls[1]?.callId).toMatch(/^call_s\d+$/);
     expect(calls[0]?.callId).not.toBe(calls[1]?.callId);
+  });
+
+  it("streams prose narration then delivers one ModelMessageItem without a second narration", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const narrations: string[] = [];
+    const delivered: ModelMessageItem[] = [];
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverSemanticEvent: (_c: unknown, item: SemanticEvent<unknown>) => {
+          narrations.push((item.data as { text?: string }).text ?? "");
+        },
+        deliverModelMessage: (_c: unknown, item: ModelMessageItem) => {
+          delivered.push(item);
+        },
+        deliverFunctionCall: () => {
+          throw new Error("unexpected function call");
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        sseResponse([
+          { delta: { content: "Hel" } },
+          { delta: { content: "lo" }, finish_reason: "stop" },
+        ]),
+    });
+    expect(narrations).toEqual(["Hel", "lo"]);
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0]?.content.text).toBe("Hello");
+  });
+
+  it("does not deliver a completion when aborted after a partial SSE chunk", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const controller = new AbortController();
+    let deliveredModel = false;
+    let deliveredCall = false;
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverSemanticEvent: () => undefined,
+        deliverModelMessage: () => {
+          deliveredModel = true;
+        },
+        deliverFunctionCall: () => {
+          deliveredCall = true;
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        /* AbortError maps to onFailed; completion must not be delivered */
+      },
+      signal: controller.signal,
+      fetchImpl: async () => {
+        const body = new ReadableStream<Uint8Array>({
+          start(s) {
+            s.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"{"}}]}\n\n'));
+            controller.abort();
+            s.close();
+          },
+        });
+        return new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      },
+    });
+
+    expect(deliveredModel).toBe(false);
+    expect(deliveredCall).toBe(false);
   });
 });
