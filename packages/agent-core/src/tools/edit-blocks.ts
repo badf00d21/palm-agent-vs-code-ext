@@ -1,3 +1,5 @@
+import { toPosix } from "../workspace/paths.js";
+
 export interface EditBlock {
   path: string;
   search: string;
@@ -11,7 +13,7 @@ export function classifyEditBlock(block: {
   search: string;
   replace: string;
 }): { ok: true; kind: EditKind; path: string } | { ok: false; error: string } {
-  const raw = block.path.trim();
+  const raw = toPosix(block.path.trim()).replace(/^\.\//, "");
   const isDir = raw.endsWith("/");
   const path = isDir ? raw.replace(/\/+$/, "") + "/" : raw;
   const emptySearch = block.search === "";

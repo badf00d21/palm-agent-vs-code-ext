@@ -39,6 +39,7 @@ export function isReviewStoreError(message: string): boolean {
   return (
     message === "No pending review" ||
     message === "File is not in the review" ||
+    message === "Directory has no diff" ||
     message.startsWith("File changed since proposal:")
   );
 }

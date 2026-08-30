@@ -143,7 +143,9 @@ describe("createReviewStore", () => {
     let wrote = false;
     const store = createReviewStore({
       emit: () => undefined,
-      readFile: async () => "nope",
+      readFile: async () => {
+        throw new Error("should not read a create that exists()");
+      },
       exists: async () => "file",
       applyFiles: async () => {
         wrote = true;
@@ -156,6 +158,24 @@ describe("createReviewStore", () => {
       message: "File changed since proposal: n.ts",
     });
     expect(wrote).toBe(false);
+  });
+
+  it("passes mkdir kind to applyFiles", async () => {
+    const applied: unknown[] = [];
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => {
+        throw new Error("should not read a mkdir target");
+      },
+      exists: async () => "absent",
+      applyFiles: async (files) => {
+        applied.push(...files);
+      },
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "d/", original: "", proposed: "", kind: "mkdir" }]);
+    expect(await store.apply("rev_1")).toEqual({ type: "diff_settled", id: "rev_1", status: "kept" });
+    expect(applied).toEqual([{ path: "d/", proposed: "", kind: "mkdir" }]);
   });
 
   it("lookup rejects mkdir paths", () => {

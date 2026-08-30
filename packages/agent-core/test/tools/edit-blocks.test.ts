@@ -108,4 +108,20 @@ describe("classifyEditBlock", () => {
       error: "path is a directory",
     });
   });
+
+  it("posix-normalizes a backslash mkdir path", () => {
+    expect(classifyEditBlock({ path: "src\\components\\", search: "", replace: "" })).toEqual({
+      ok: true,
+      kind: "mkdir",
+      path: "src/components/",
+    });
+  });
+
+  it("strips a leading ./ after posix-normalizing a create path", () => {
+    expect(classifyEditBlock({ path: ".\\src\\foo.ts", search: "", replace: "export const x = 1;\n" })).toEqual({
+      ok: true,
+      kind: "create",
+      path: "src/foo.ts",
+    });
+  });
 });

@@ -126,6 +126,7 @@ describe("applyExtMessage", () => {
     expect(shouldClearBusy({ type: "error", message: "File changed since proposal: a.ts" })).toBe(
       false,
     );
+    expect(shouldClearBusy({ type: "error", message: "Directory has no diff" })).toBe(false);
     expect(shouldClearBusy({ type: "assistant_delta", text: "hi" })).toBe(false);
   });
 
