@@ -114,10 +114,16 @@ describe("createAgentSession inference failures", () => {
         type: "tool_call",
         name: "read_file",
         args: { path: "echo.ts" },
-        id: "call_unknown",
+        id: "call_echo",
         status: "running",
       },
-      { type: "assistant_delta", text: "echo.ts exports echo" },
+      {
+        type: "tool_call",
+        name: "",
+        args: {},
+        id: "call_echo",
+        status: "done",
+      },
       { type: "assistant_delta", text: "echo.ts exports echo" },
       { type: "done" },
     ]);

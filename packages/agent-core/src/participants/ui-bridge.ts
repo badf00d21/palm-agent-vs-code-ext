@@ -1,7 +1,7 @@
 import {
   BaseParticipant,
   FunctionCallItem,
-  ModelMessageItem,
+  FunctionCallOutputItem,
   SemanticEvent,
   type Participant,
 } from "@mozaik-ai/core";
@@ -11,16 +11,17 @@ import { NARRATION_EVENT } from "../model/local-inference.js";
 export function eventsFromFunctionCall(
   name: string,
   args: unknown,
-  id = "call_unknown",
+  id: string,
 ): ExtToWebview {
   return { type: "tool_call", name, args, id, status: "running" };
 }
 
-export function eventFromModelText(text: string): ExtToWebview | null {
-  if (!text) {
-    return null;
-  }
-  return { type: "assistant_delta", text };
+export function eventsFromFunctionCallOutput(id: string): ExtToWebview {
+  return { type: "tool_call", name: "", args: {}, id, status: "done" };
+}
+
+export function eventFromModelText(_text: string): ExtToWebview | null {
+  return null;
 }
 
 export function eventFromNarration(item: SemanticEvent<unknown>): ExtToWebview | null {
@@ -54,15 +55,15 @@ export class UIBridge extends BaseParticipant {
   override onExternalFunctionCall(_source: Participant, item: FunctionCallItem): void {
     const name = item.name ?? "tool";
     const args = parseFunctionCallArgs(item.args);
-    this.sink()(eventsFromFunctionCall(name, args));
+    this.sink()(eventsFromFunctionCall(name, args, item.callId));
   }
 
-  override onExternalModelMessage(_source: Participant, item: ModelMessageItem): void {
-    const text = item.content?.text ?? "";
-    const event = eventFromModelText(text);
-    if (event) {
-      this.sink()(event);
-    }
+  override onExternalFunctionCallOutput(_source: Participant, item: FunctionCallOutputItem): void {
+    this.sink()(eventsFromFunctionCallOutput(item.callId));
+  }
+
+  override onExternalModelMessage(): void {
+    return;
   }
 
   override onExternalEvent(_source: Participant, item: SemanticEvent<unknown>): void {

@@ -1,4 +1,9 @@
-import { BaseParticipant, SemanticEvent } from "@mozaik-ai/core";
+import {
+  BaseParticipant,
+  FunctionCallItem,
+  FunctionCallOutputItem,
+  SemanticEvent,
+} from "@mozaik-ai/core";
 import { describe, expect, it } from "vitest";
 import type { ExtToWebview } from "@palm-agent/shared";
 import { NARRATION_EVENT } from "../../src/model/local-inference.js";
@@ -7,24 +12,32 @@ import {
   eventFromModelText,
   eventFromNarration,
   eventsFromFunctionCall,
+  eventsFromFunctionCallOutput,
 } from "../../src/participants/ui-bridge.js";
 
 describe("UIBridge mappers", () => {
-  it("maps a function call", () => {
-    expect(eventsFromFunctionCall("read_file", { path: "a.ts" })).toEqual({
+  it("maps a function call as running", () => {
+    expect(eventsFromFunctionCall("read_file", { path: "a.ts" }, "call_1")).toEqual({
       type: "tool_call",
       name: "read_file",
       args: { path: "a.ts" },
-      id: "call_unknown",
+      id: "call_1",
       status: "running",
     } satisfies ExtToWebview);
   });
 
-  it("maps model text", () => {
-    expect(eventFromModelText("hello")).toEqual({
-      type: "assistant_delta",
-      text: "hello",
-    });
+  it("maps function output as done", () => {
+    expect(eventsFromFunctionCallOutput("call_1")).toEqual({
+      type: "tool_call",
+      name: "",
+      args: {},
+      id: "call_1",
+      status: "done",
+    } satisfies ExtToWebview);
+  });
+
+  it("does not map model text to the sink", () => {
+    expect(eventFromModelText("hello")).toBeNull();
   });
 
   it("skips empty model text", () => {
@@ -56,5 +69,40 @@ describe("UIBridge narration forwarding", () => {
     bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent("unrelated", { text: "no" }));
 
     expect(events).toEqual([{ type: "assistant_delta", text: "Reading the file first." }]);
+  });
+});
+
+describe("UIBridge tool lifecycle", () => {
+  it("emits running then done for a function call and its output", () => {
+    const events: ExtToWebview[] = [];
+    const bridge = new UIBridge(() => (event) => events.push(event));
+    const source = new BaseParticipant();
+
+    bridge.onExternalFunctionCall(
+      source,
+      FunctionCallItem.rehydrate({
+        callId: "call_1",
+        name: "read_file",
+        args: '{"path":"a.ts"}',
+      }),
+    );
+    bridge.onExternalFunctionCallOutput(source, FunctionCallOutputItem.create("call_1", "ok"));
+
+    expect(events).toEqual([
+      {
+        type: "tool_call",
+        name: "read_file",
+        args: { path: "a.ts" },
+        id: "call_1",
+        status: "running",
+      },
+      {
+        type: "tool_call",
+        name: "",
+        args: {},
+        id: "call_1",
+        status: "done",
+      },
+    ]);
   });
 });
