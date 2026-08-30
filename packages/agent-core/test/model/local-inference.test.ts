@@ -389,6 +389,101 @@ describe("runLocalChatCompletions", () => {
     expect(failed).toMatch(/Empty completion from provider/);
   });
 
+  it("turns SEARCH/REPLACE content into a propose_edit function call", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const calls: FunctionCallItem[] = [];
+    const environment = {
+      deliverSemanticEvent: () => undefined,
+      deliverModelMessage: () => {
+        throw new Error("should not deliver fence text as a model message");
+      },
+      deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+        calls.push(item);
+      },
+    } as unknown as AgenticEnvironment;
+
+    const fence = [
+      "public/audio.js",
+      "<<<<<<< SEARCH",
+      "hitDrum(bar);",
+      "=======",
+      "const hit = hitDrum(bar);",
+      ">>>>>>> REPLACE",
+    ].join("\n");
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        sseResponse([{ delta: { role: "assistant", content: fence }, finish_reason: "stop" }]),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe("propose_edit");
+    expect(JSON.parse(calls[0]?.args ?? "{}")).toEqual({
+      files: [
+        {
+          path: "public/audio.js",
+          search: "hitDrum(bar);",
+          replace: "const hit = hitDrum(bar);",
+        },
+      ],
+    });
+  });
+
+  it("turns a fenced create in message.content into propose_edit with empty SEARCH", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const calls: FunctionCallItem[] = [];
+    const environment = {
+      deliverSemanticEvent: () => undefined,
+      deliverModelMessage: () => {
+        throw new Error("should not deliver fence text as a model message");
+      },
+      deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+        calls.push(item);
+      },
+    } as unknown as AgenticEnvironment;
+
+    const fence = [
+      "src/new.ts",
+      "<<<<<<< SEARCH",
+      "=======",
+      "export const x = 1;",
+      ">>>>>>> REPLACE",
+    ].join("\n");
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        sseResponse([{ delta: { role: "assistant", content: fence }, finish_reason: "stop" }]),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe("propose_edit");
+    expect(JSON.parse(calls[0]?.args ?? "{}")).toEqual({
+      files: [
+        {
+          path: "src/new.ts",
+          search: "",
+          replace: "export const x = 1;",
+        },
+      ],
+    });
+  });
+
   it("fails when the provider returns JSON instead of SSE", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     let delivered = false;

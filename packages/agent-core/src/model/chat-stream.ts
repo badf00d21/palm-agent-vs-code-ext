@@ -1,3 +1,4 @@
+import { contentHasEditFence } from "../tools/edit-blocks.js";
 import { parseToolCallsFromContent } from "./local-inference.js";
 
 export interface StreamToolCall {
@@ -115,6 +116,9 @@ export function streamMode(acc: AssembledCompletion): "prose" | "tool" {
     return "tool";
   }
   if (parseToolCallsFromContent(acc.content).length > 0) {
+    return "tool";
+  }
+  if (contentHasEditFence(acc.content)) {
     return "tool";
   }
   return "prose";

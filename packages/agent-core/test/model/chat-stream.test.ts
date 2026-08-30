@@ -43,6 +43,12 @@ describe("applyChatChunk + streamMode", () => {
     expect(streamMode(acc)).toBe("prose");
   });
 
+  it("switches to tool when content contains a SEARCH fence", () => {
+    const acc = emptyAssembly();
+    applyChatChunk(acc, { choices: [{ delta: { content: "public/audio.js\n<<<<<<< SEARCH\n" } }] });
+    expect(streamMode(acc)).toBe("tool");
+  });
+
   it("switches to tool when content starts with {", () => {
     const acc = emptyAssembly();
     applyChatChunk(acc, { choices: [{ delta: { content: '{"name"' } }] });
@@ -108,6 +114,19 @@ describe("readSseChatCompletion", () => {
     expect(deltas).toEqual([]);
     expect(streamMode(acc)).toBe("tool");
     expect(acc.content).toBe(json);
+  });
+
+  it("does not emit deltas for SEARCH/REPLACE fence content", async () => {
+    const fence = "public/audio.js\n<<<<<<< SEARCH\nold\n=======\nnew\n>>>>>>> REPLACE";
+    const body = `data: ${JSON.stringify({ choices: [{ delta: { content: fence }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`;
+    const deltas: string[] = [];
+    const acc = await readSseChatCompletion(
+      new Response(body, { headers: { "Content-Type": "text/event-stream" } }),
+      (text) => deltas.push(text),
+    );
+    expect(deltas).toEqual([]);
+    expect(streamMode(acc)).toBe("tool");
+    expect(acc.content).toBe(fence);
   });
 
   it("does not emit after abort", async () => {

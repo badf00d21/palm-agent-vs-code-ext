@@ -11,6 +11,8 @@ import { applySearchReplace } from "./search-replace.js";
 /** Local models run with a 16–32k num_ctx budget; one read must not eat it. */
 const READ_LIMIT = 24_000;
 const SEARCH_LIMIT = 50;
+/** start_line without end_line must not dump the rest of the file into context. */
+const START_ONLY_LINE_WINDOW = 80;
 
 export const SYSTEM_PROMPT =
   "You are a coding assistant in a local workspace. Use tools to find and read code before answering. Do not invent file contents or paths. " +
@@ -24,6 +26,10 @@ export const SYSTEM_PROMPT =
   "Do not roleplay, do not use personal names, and do not reply with a single unrelated word. " +
   "A new file is an empty SEARCH and the file body as REPLACE. A new empty directory is a path ending with / and both SEARCH and REPLACE empty. Never overwrite: if the path exists, read it and use a real SEARCH.";
 
+export function toolsVisibleToModel(tools: Tool[]): Tool[] {
+  return tools.filter((tool) => tool.name !== "propose_edit");
+}
+
 /** Model invented a wildcard body (`{[^}]*}`), not a regex that already exists in the file. */
 export function searchLooksLikeRegex(search: string): boolean {
   return /\{\s*\[\^\}?\]\*\}/.test(search);
@@ -34,7 +40,7 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
     {
       name: "read_file",
       description:
-        "Read a UTF-8 text file. Path may be workspace-relative or a unique filename. Optional start_line/end_line (1-based, inclusive) return a raw slice — copy propose_edit.search from that slice, not the header.",
+        "Read a UTF-8 text file. Path may be workspace-relative or a unique filename. Optional start_line/end_line (1-based, inclusive) return a raw slice — copy SEARCH from that slice, not the header. If you pass start_line without end_line, at most 80 lines are returned.",
       strict: true,
       type: "function",
       parameters: {
@@ -61,7 +67,9 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
         }
         if (hasStart || hasEnd) {
           const start = hasStart ? Number(args.start_line) : 1;
-          const end = hasEnd ? Number(args.end_line) : lineCount(located.text);
+          const end = hasEnd
+            ? Number(args.end_line)
+            : start + START_ONLY_LINE_WINDOW - 1;
           const sliced = sliceByLines(located.text, start, end);
           if ("error" in sliced) {
             return `Error: ${sliced.error}`;

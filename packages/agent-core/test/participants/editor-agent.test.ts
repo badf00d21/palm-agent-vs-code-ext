@@ -64,14 +64,19 @@ describe("EditorAgent tool failure feedback", () => {
   const prevBase = process.env.OPENAI_BASE_URL;
   const prevKey = process.env.OPENAI_API_KEY;
   const originalFetch = globalThis.fetch;
-  let bodies: Array<{ messages: ChatMessage[] }>;
+  let bodies: Array<{ messages: ChatMessage[]; tools?: Array<{ function?: { name?: string } }> }>;
 
   beforeEach(() => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     process.env.OPENAI_API_KEY = "not-needed";
     bodies = [];
     globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)) as { messages: ChatMessage[] });
+      bodies.push(
+        JSON.parse(String(init?.body)) as {
+          messages: ChatMessage[];
+          tools?: Array<{ function?: { name?: string } }>;
+        },
+      );
       const body =
         `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })}\n\n` +
         "data: [DONE]\n\n";
@@ -180,5 +185,24 @@ describe("EditorAgent tool failure feedback", () => {
       expect(bodies).toHaveLength(1);
     });
     expect(toolOutput(bodies[0]!)?.content).toBe(raw);
+  });
+
+  it("does not advertise propose_edit in the Ollama tools list", async () => {
+    const propose: Tool = {
+      name: "propose_edit",
+      description: "internal",
+      strict: true,
+      type: "function",
+      parameters: { type: "object", properties: {}, required: [] },
+      invoke: async () => "unused",
+    };
+    const { agent } = setup([echoTool("ok"), propose]);
+    agent.onMessage("hi");
+    await vi.waitFor(() => {
+      expect(bodies).toHaveLength(1);
+    });
+    const names = (bodies[0]?.tools ?? []).map((t) => t.function?.name);
+    expect(names).toContain("echo");
+    expect(names).not.toContain("propose_edit");
   });
 });

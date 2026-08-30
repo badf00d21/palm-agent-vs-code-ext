@@ -12,6 +12,7 @@ import {
   type Tool,
 } from "@mozaik-ai/core";
 import { parse as parseJsonc } from "jsonc-parser";
+import { parseSearchReplaceBlocks } from "../tools/edit-blocks.js";
 import { readSseChatCompletion } from "./chat-stream.js";
 
 /** Streamed assistant prose — UI-only, never context. */
@@ -295,10 +296,19 @@ function deliverCompletion(
     return;
   }
   const nativeToolCalls = message.tool_calls ?? [];
+  const fromContent = parseToolCallsFromContent(message.content ?? "");
+  const editBlocks = parseSearchReplaceBlocks(message.content ?? "");
+  const fromFences: ChatToolCall[] =
+    fromContent.length === 0 && editBlocks.length > 0
+      ? [
+          {
+            id: `call_s${++syntheticCallCounter}`,
+            function: { name: "propose_edit", arguments: JSON.stringify({ files: editBlocks }) },
+          },
+        ]
+      : [];
   const toolCalls =
-    nativeToolCalls.length > 0
-      ? nativeToolCalls
-      : parseToolCallsFromContent(message.content ?? "");
+    nativeToolCalls.length > 0 ? nativeToolCalls : fromContent.length > 0 ? fromContent : fromFences;
   const reasoning = message.reasoning_content ?? message.reasoning ?? message.thinking ?? "";
   params.trace?.(
     `completion: content=${(message.content ?? "").length}ch reasoning=${reasoning.length}ch nativeCalls=${nativeToolCalls.length} totalCalls=${toolCalls.length} finish=${choice?.finish_reason ?? "?"}`,
@@ -396,7 +406,8 @@ export async function runLocalChatCompletions(
       !hasNativeTools &&
       !emptyContent &&
       !emittedNarration &&
-      parseToolCallsFromContent(assembled.content).length === 0
+      parseToolCallsFromContent(assembled.content).length === 0 &&
+      parseSearchReplaceBlocks(assembled.content).length === 0
     ) {
       params.environment.deliverSemanticEvent(
         params.caller,

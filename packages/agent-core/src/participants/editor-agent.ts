@@ -10,6 +10,7 @@ import {
   type Tool,
 } from "@mozaik-ai/core";
 import { runLocalChatCompletions } from "../model/local-inference.js";
+import { toolsVisibleToModel } from "../tools/tools.js";
 
 function sliceError(error: unknown): string {
   const message = error instanceof Error && error.message ? error.message : String(error);
@@ -177,7 +178,7 @@ export class EditorAgent extends BaseParticipant {
     void runLocalChatCompletions({
       trace: this.onTrace,
       model: this.model,
-      tools: this.tools,
+      tools: toolsVisibleToModel(this.tools),
       context: this.context,
       environment: this.environment,
       caller: this,

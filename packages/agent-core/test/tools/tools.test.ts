@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspacePort } from "../../src/workspace/port.js";
 import type { ReviewHost } from "../../src/tools/review.js";
-import { createWorkspaceTools } from "../../src/tools/tools.js";
+import { createWorkspaceTools, toolsVisibleToModel } from "../../src/tools/tools.js";
 
 function fakeHost(overrides: Partial<ReviewHost> = {}): ReviewHost {
   return {
@@ -95,6 +95,24 @@ describe("read_file", () => {
     expect(await invoke({ path: "a.ts", start_line: 3, end_line: 4 })).toBe(
       "Error: start_line 3 is past end of file (1 lines)",
     );
+  });
+
+  it("caps start_line without end_line to 80 lines", async () => {
+    const content = Array.from({ length: 200 }, (_, i) => `L${i + 1}`).join("\n") + "\n";
+    const invoke = getInvoke("read_file", fakePort({ readFile: async () => content }));
+    const out = await invoke({ path: "a.ts", start_line: 10 });
+    expect(out.startsWith("[lines: 10-89 of 200]\n")).toBe(true);
+    expect(out).toContain("L10\n");
+    expect(out).toContain("L89\n");
+    expect(out).not.toContain("L90\n");
+  });
+});
+
+describe("toolsVisibleToModel", () => {
+  it("omits propose_edit", () => {
+    const names = toolsVisibleToModel(createWorkspaceTools(fakePort(), fakeHost())).map((t) => t.name);
+    expect(names).toContain("read_file");
+    expect(names).not.toContain("propose_edit");
   });
 });
 
