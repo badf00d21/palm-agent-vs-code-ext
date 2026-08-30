@@ -6,9 +6,10 @@ import {
 } from "@mozaik-ai/core";
 import { describe, expect, it } from "vitest";
 import type { ExtToWebview } from "@palm-agent/shared";
-import { NARRATION_EVENT } from "../../src/model/local-inference.js";
+import { CONTEXT_USAGE_EVENT, NARRATION_EVENT } from "../../src/model/local-inference.js";
 import {
   UIBridge,
+  eventFromContextUsage,
   eventFromModelText,
   eventFromNarration,
   eventsFromFunctionCall,
@@ -55,6 +56,18 @@ describe("UIBridge mappers", () => {
     expect(eventFromNarration(new SemanticEvent(NARRATION_EVENT, { text: "" }))).toBeNull();
     expect(eventFromNarration(new SemanticEvent(NARRATION_EVENT, {}))).toBeNull();
   });
+
+  it("maps a context_usage event", () => {
+    expect(eventFromContextUsage(new SemanticEvent(CONTEXT_USAGE_EVENT, { used: 4200 }))).toEqual({
+      type: "context_usage",
+      used: 4200,
+      max: null,
+    });
+  });
+
+  it("ignores context_usage without a finite used", () => {
+    expect(eventFromContextUsage(new SemanticEvent(CONTEXT_USAGE_EVENT, {}))).toBeNull();
+  });
 });
 
 describe("UIBridge narration forwarding", () => {
@@ -69,6 +82,13 @@ describe("UIBridge narration forwarding", () => {
     bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent("unrelated", { text: "no" }));
 
     expect(events).toEqual([{ type: "assistant_delta", text: "Reading the file first." }]);
+  });
+
+  it("forwards context_usage through onExternalEvent to the sink", () => {
+    const events: ExtToWebview[] = [];
+    const bridge = new UIBridge(() => (event) => events.push(event));
+    bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent(CONTEXT_USAGE_EVENT, { used: 12 }));
+    expect(events).toEqual([{ type: "context_usage", used: 12, max: null }]);
   });
 });
 

@@ -12,7 +12,8 @@ export type WebviewToExt =
   | { type: "open_diff"; id: string; path?: string }
   | { type: "cancel" }
   | { type: "suggest_files"; query: string }
-  | { type: "get_selection" };
+  | { type: "get_selection" }
+  | { type: "open_url"; url: string };
 
 export type ExtToWebview =
   | { type: "assistant_delta"; text: string }
@@ -22,4 +23,5 @@ export type ExtToWebview =
   | { type: "file_suggestions"; query: string; paths: string[] }
   | { type: "selection"; text: string | null }
   | { type: "done" }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "context_usage"; used: number; max: number | null };

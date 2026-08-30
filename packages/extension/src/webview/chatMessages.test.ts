@@ -89,6 +89,11 @@ describe("applyExtMessage", () => {
     expect(applyExtMessage(prev, { type: "done" })).toBe(prev);
   });
 
+  it("ignores context_usage", () => {
+    const prev: ChatLine[] = [{ role: "user", text: "x" }];
+    expect(applyExtMessage(prev, { type: "context_usage", used: 10, max: 100 })).toBe(prev);
+  });
+
   it("creates and updates a review line by id", () => {
     const first = applyExtMessage([], {
       type: "diff_proposed",

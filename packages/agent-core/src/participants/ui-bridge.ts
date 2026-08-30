@@ -6,7 +6,7 @@ import {
   type Participant,
 } from "@mozaik-ai/core";
 import type { ExtToWebview } from "@palm-agent/shared";
-import { NARRATION_EVENT } from "../model/local-inference.js";
+import { CONTEXT_USAGE_EVENT, NARRATION_EVENT } from "../model/local-inference.js";
 
 export function eventsFromFunctionCall(
   name: string,
@@ -34,6 +34,17 @@ export function eventFromNarration(item: SemanticEvent<unknown>): ExtToWebview |
     return null;
   }
   return { type: "assistant_delta", text };
+}
+
+export function eventFromContextUsage(item: SemanticEvent<unknown>): ExtToWebview | null {
+  if (item.getType() !== CONTEXT_USAGE_EVENT) {
+    return null;
+  }
+  const used = (item.data as { used?: unknown } | null | undefined)?.used;
+  if (typeof used !== "number" || !Number.isFinite(used)) {
+    return null;
+  }
+  return { type: "context_usage", used, max: null };
 }
 
 function parseFunctionCallArgs(raw: string): unknown {
@@ -67,7 +78,7 @@ export class UIBridge extends BaseParticipant {
   }
 
   override onExternalEvent(_source: Participant, item: SemanticEvent<unknown>): void {
-    const event = eventFromNarration(item);
+    const event = eventFromContextUsage(item) ?? eventFromNarration(item);
     if (event) {
       this.sink()(event);
     }
