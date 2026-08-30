@@ -75,17 +75,47 @@ function ReviewCard({
   );
 }
 
+function activeAtQuery(value: string, caret: number): string | null {
+  const upto = value.slice(0, caret);
+  const match = /(?:^|\s)@([^\s@]*)$/.exec(upto);
+  return match ? (match[1] ?? "") : null;
+}
+
 export function App() {
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestQuery, setSuggestQuery] = useState<string | null>(null);
+  const [hint, setHint] = useState("");
+  const [highlight, setHighlight] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const vscodeRef = useRef(getVsCodeApi());
+  const suggestTimer = useRef<number | undefined>(undefined);
+  const pendingSuggest = useRef<string | null>(null);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtToWebview>) => {
       const msg = event.data;
+      if (msg.type === "file_suggestions") {
+        if (msg.query !== pendingSuggest.current) {
+          return;
+        }
+        setSuggestions(msg.paths);
+        setHighlight(0);
+        return;
+      }
+      if (msg.type === "selection") {
+        if (msg.text) {
+          setInput((prev) => (prev ? `${prev}\n${msg.text}` : msg.text));
+          setHint("");
+        } else {
+          setHint("No selection");
+        }
+        return;
+      }
       if (shouldClearBusy(msg)) {
         setBusy(false);
       }
@@ -96,7 +126,10 @@ export function App() {
     };
 
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(suggestTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -115,6 +148,52 @@ export function App() {
     return () => clearInterval(timer);
   }, [busy]);
 
+  const scheduleSuggest = (query: string) => {
+    pendingSuggest.current = query;
+    window.clearTimeout(suggestTimer.current);
+    suggestTimer.current = window.setTimeout(() => {
+      vscodeRef.current.postMessage({ type: "suggest_files", query });
+    }, 150);
+  };
+
+  const updateAtQuery = (value: string, caret: number) => {
+    const query = activeAtQuery(value, caret);
+    if (query === null) {
+      pendingSuggest.current = null;
+      window.clearTimeout(suggestTimer.current);
+      setSuggestions([]);
+      setSuggestQuery(null);
+      setHighlight(0);
+      return;
+    }
+    if (query === "") {
+      setSuggestions([]);
+      setSuggestQuery("");
+      setHighlight(0);
+      scheduleSuggest("");
+      return;
+    }
+    setSuggestQuery(query);
+    scheduleSuggest(query);
+  };
+
+  const insertPath = (path: string) => {
+    const el = textareaRef.current;
+    const value = input;
+    const caret = el?.selectionStart ?? value.length;
+    const upto = value.slice(0, caret);
+    const atStart = upto.lastIndexOf("@");
+    if (atStart < 0) {
+      return;
+    }
+    const next = `${value.slice(0, atStart)}@${path} ${value.slice(caret)}`;
+    setInput(next);
+    setSuggestions([]);
+    setSuggestQuery(null);
+    setHighlight(0);
+    pendingSuggest.current = null;
+  };
+
   const send = () => {
     const text = input.trim();
     if (!text || busy) {
@@ -122,6 +201,9 @@ export function App() {
     }
     setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
+    setSuggestions([]);
+    setSuggestQuery(null);
+    setHint("");
     setBusy(true);
     vscodeRef.current.postMessage({ type: "user_message", text });
   };
@@ -180,32 +262,98 @@ export function App() {
           send();
         }}
       >
-        <textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              send();
-            }
-          }}
-          placeholder="Message Palm Agent"
-          rows={3}
-          disabled={busy}
-        />
-        {busy ? (
+        <div className="composer-main">
+          {suggestQuery !== null ? (
+            <ul className="suggest" role="listbox">
+              {suggestions.length === 0 ? (
+                <li className="suggest-empty">No files</li>
+              ) : (
+                suggestions.map((path, index) => (
+                  <li key={path}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={index === highlight}
+                      onClick={() => insertPath(path)}
+                    >
+                      {path}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+          {hint ? <p className="composer-hint">{hint}</p> : null}
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(event) => {
+              const value = event.target.value;
+              setInput(value);
+              updateAtQuery(value, event.target.selectionStart ?? value.length);
+            }}
+            onSelect={(event) => {
+              const el = event.currentTarget;
+              updateAtQuery(el.value, el.selectionStart ?? el.value.length);
+            }}
+            onKeyDown={(event) => {
+              if (suggestQuery !== null && event.key === "Escape") {
+                event.preventDefault();
+                setSuggestions([]);
+                setSuggestQuery(null);
+                setHighlight(0);
+                pendingSuggest.current = null;
+                return;
+              }
+              if (suggestions.length > 0) {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setHighlight((index) => Math.min(index + 1, suggestions.length - 1));
+                  return;
+                }
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setHighlight((index) => Math.max(index - 1, 0));
+                  return;
+                }
+                if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
+                  event.preventDefault();
+                  insertPath(suggestions[highlight] ?? suggestions[0]);
+                  return;
+                }
+              }
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                send();
+              }
+            }}
+            placeholder="Message Palm Agent"
+            rows={3}
+            disabled={busy}
+          />
+        </div>
+        <div className="composer-actions">
           <button
             type="button"
-            className="waiting-stop"
-            onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}
+            disabled={busy}
+            onClick={() => vscodeRef.current.postMessage({ type: "get_selection" })}
           >
-            Stop
+            Add selection
           </button>
-        ) : (
-          <button type="submit" disabled={input.trim().length === 0}>
-            Send
-          </button>
-        )}
+          {busy ? (
+            <button
+              type="button"
+              className="waiting-stop"
+              onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}
+            >
+              Stop
+            </button>
+          ) : (
+            <button type="submit" disabled={input.trim().length === 0}>
+              Send
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
