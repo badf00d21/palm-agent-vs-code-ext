@@ -69,14 +69,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post({ type: "error", message: "No workspace folder open" });
           return;
         }
-        const diskUri = vscode.Uri.joinPath(root, found.path);
+        const leftUri =
+          found.kind === "create"
+            ? vscode.Uri.from({ scheme: "palm-agent", path: "/.empty" })
+            : vscode.Uri.joinPath(root, found.path);
         const proposedUri = vscode.Uri.from({
           scheme: "palm-agent",
           path: "/" + found.path,
         });
         await vscode.commands.executeCommand(
           "vscode.diff",
-          diskUri,
+          leftUri,
           proposedUri,
           `${found.path} (proposed)`,
         );

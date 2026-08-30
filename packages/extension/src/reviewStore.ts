@@ -133,8 +133,8 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
       return { path: file.path, proposed: file.proposed, kind: file.kind };
     }
 
-    const file = pending.files[0];
-    if (file.kind === "mkdir") {
+    const file = pending.files.find((f) => f.kind !== "mkdir");
+    if (!file) {
       return { error: "Directory has no diff" };
     }
     return { path: file.path, proposed: file.proposed, kind: file.kind };

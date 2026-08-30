@@ -170,6 +170,21 @@ describe("createReviewStore", () => {
     expect(store.lookup("rev_1", "d/")).toEqual({ error: "Directory has no diff" });
   });
 
+  it("lookup without path skips mkdir", () => {
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => "",
+      exists: async () => "absent",
+      applyFiles: async () => undefined,
+      createId: () => "rev_1",
+    });
+    store.merge([
+      { path: "d/", original: "", proposed: "", kind: "mkdir" },
+      { path: "a.ts", original: "", proposed: "x", kind: "create" },
+    ]);
+    expect(store.lookup("rev_1")).toEqual({ path: "a.ts", proposed: "x", kind: "create" });
+  });
+
   it("does not call applyFiles on reject", () => {
     let wrote = false;
     const store = createReviewStore({

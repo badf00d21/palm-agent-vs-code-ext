@@ -129,6 +129,28 @@ describe("applyExtMessage", () => {
     expect(shouldClearBusy({ type: "assistant_delta", text: "hi" })).toBe(false);
   });
 
+  it("keeps create and mkdir kinds on the review line", () => {
+    const next = applyExtMessage([], {
+      type: "diff_proposed",
+      id: "rev_1",
+      files: [
+        { path: "n.ts", kind: "create" },
+        { path: "d/", kind: "mkdir" },
+      ],
+    });
+    expect(next).toEqual([
+      {
+        role: "review",
+        id: "rev_1",
+        files: [
+          { path: "n.ts", kind: "create" },
+          { path: "d/", kind: "mkdir" },
+        ],
+        status: "pending",
+      },
+    ]);
+  });
+
   it("settles a review as kept", () => {
     const pending = applyExtMessage([], {
       type: "diff_proposed",

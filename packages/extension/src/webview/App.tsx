@@ -28,6 +28,7 @@ function ReviewCard({
   const fileLabel = `${message.files.length} file${message.files.length === 1 ? "" : "s"}`;
   const statusText =
     message.status === "kept" ? "Kept" : message.status === "undone" ? "Undone" : undefined;
+  const hasReviewable = message.files.some((file) => file.kind !== "mkdir");
 
   return (
     <>
@@ -42,16 +43,20 @@ function ReviewCard({
           <ul className="review-list">
             {message.files.map((file) => (
               <li key={file.path}>
-                {pending ? (
+                {pending && file.kind !== "mkdir" ? (
                   <button
                     type="button"
                     className="review-file"
                     onClick={() => postMessage({ type: "open_diff", id: message.id, path: file.path })}
                   >
                     {file.path}
+                    {file.kind === "create" ? <span className="review-kind"> new</span> : null}
                   </button>
                 ) : (
-                  <span>{file.path}</span>
+                  <span>
+                    {file.path}
+                    {file.kind === "create" ? <span className="review-kind"> new</span> : null}
+                  </span>
                 )}
               </li>
             ))}
@@ -64,9 +69,11 @@ function ReviewCard({
               <button type="button" onClick={() => postMessage({ type: "apply_diff", id: message.id })}>
                 Keep All
               </button>
-              <button type="button" onClick={() => postMessage({ type: "open_diff", id: message.id })}>
-                Review
-              </button>
+              {hasReviewable ? (
+                <button type="button" onClick={() => postMessage({ type: "open_diff", id: message.id })}>
+                  Review
+                </button>
+              ) : null}
             </div>
           ) : null}
         </>
