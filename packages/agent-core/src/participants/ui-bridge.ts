@@ -8,8 +8,12 @@ import {
 import type { ExtToWebview } from "@palm-agent/shared";
 import { NARRATION_EVENT } from "../model/local-inference.js";
 
-export function eventsFromFunctionCall(name: string, args: unknown): ExtToWebview {
-  return { type: "tool_call", name, args };
+export function eventsFromFunctionCall(
+  name: string,
+  args: unknown,
+  id = "call_unknown",
+): ExtToWebview {
+  return { type: "tool_call", name, args, id, status: "running" };
 }
 
 export function eventFromModelText(text: string): ExtToWebview | null {

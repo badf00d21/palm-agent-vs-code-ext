@@ -15,6 +15,8 @@ describe("UIBridge mappers", () => {
       type: "tool_call",
       name: "read_file",
       args: { path: "a.ts" },
+      id: "call_unknown",
+      status: "running",
     } satisfies ExtToWebview);
   });
 

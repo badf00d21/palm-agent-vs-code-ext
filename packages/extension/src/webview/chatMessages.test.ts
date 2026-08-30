@@ -12,6 +12,8 @@ describe("applyExtMessage", () => {
       type: "tool_call",
       name: "read_file",
       args: { path: "src/echo.ts" },
+      id: "c1",
+      status: "running",
     });
     expect(next[0]).toEqual({ role: "tool", text: "read_file  src/echo.ts" });
   });
