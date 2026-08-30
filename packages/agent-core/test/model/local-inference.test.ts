@@ -7,7 +7,7 @@ import {
   UserMessageItem,
 } from "@mozaik-ai/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseToolCallsFromContent, runLocalChatCompletions } from "./local-inference.js";
+import { parseToolCallsFromContent, runLocalChatCompletions } from "../../src/model/local-inference.js";
 
 const BASE_URL = "http://localhost:11434/v1";
 

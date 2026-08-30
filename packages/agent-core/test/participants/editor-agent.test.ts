@@ -6,7 +6,7 @@ import {
   type Tool,
 } from "@mozaik-ai/core";
 import { describe, expect, it, vi } from "vitest";
-import { EditorAgent } from "./participants/editor-agent.js";
+import { EditorAgent } from "../../src/participants/editor-agent.js";
 
 function boomTool(message: string): Tool {
   return {

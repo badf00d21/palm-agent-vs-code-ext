@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergePending, type ProposedFile } from "./review.js";
+import { mergePending, type ProposedFile } from "../../src/tools/review.js";
 
 const a = (proposed: string): ProposedFile => ({
   path: "a.ts",

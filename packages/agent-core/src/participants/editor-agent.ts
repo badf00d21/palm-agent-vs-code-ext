@@ -10,7 +10,7 @@ import {
   executeFunctionCall,
   type Tool,
 } from "@mozaik-ai/core";
-import { runLocalChatCompletions } from "../local-inference.js";
+import { runLocalChatCompletions } from "../model/local-inference.js";
 
 function sliceError(error: unknown): string {
   const message = error instanceof Error && error.message ? error.message : String(error);

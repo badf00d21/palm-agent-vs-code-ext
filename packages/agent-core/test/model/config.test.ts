@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isForbiddenModelName } from "./config.js";
+import { isForbiddenModelName } from "../../src/model/config.js";
 
 describe("isForbiddenModelName", () => {
   it("allows deepseek-v4-pro (qwen coder alias)", () => {

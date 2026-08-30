@@ -1,8 +1,8 @@
-export type { ModelConfig } from "./config.js";
-export { DEFAULT_BASE_URL, DEFAULT_MODEL, isForbiddenModelName } from "./config.js";
-export type { AgentSession, SessionEventSink } from "./session.js";
-export { createAgentSession } from "./session.js";
-export type { DirEntry, EditorContext, SearchHit, WorkspacePort } from "./port.js";
-export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./paths.js";
-export type { PendingReview, ProposedFile, ReviewHost } from "./review.js";
-export { mergePending } from "./review.js";
+export type { ModelConfig } from "./model/config.js";
+export { DEFAULT_BASE_URL, DEFAULT_MODEL, isForbiddenModelName } from "./model/config.js";
+export type { AgentSession, SessionEventSink } from "./session/session.js";
+export { createAgentSession } from "./session/session.js";
+export type { DirEntry, EditorContext, SearchHit, WorkspacePort } from "./workspace/port.js";
+export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./workspace/paths.js";
+export type { PendingReview, ProposedFile, ReviewHost } from "./tools/review.js";
+export { mergePending } from "./tools/review.js";

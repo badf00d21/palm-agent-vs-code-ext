@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applySearchReplace } from "./search-replace.js";
+import { applySearchReplace } from "../../src/tools/search-replace.js";
 
 describe("applySearchReplace", () => {
   it("replaces one exact match", () => {

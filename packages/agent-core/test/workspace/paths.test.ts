@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./paths.js";
+import { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "../../src/workspace/paths.js";
 
 const root = path.join("D:", "ws");
 

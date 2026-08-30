@@ -53,11 +53,13 @@ coding-agent/
       src/extension.ts    # activate(): registruje view + komande, hostuje agenta
       src/webview/        # React chat UI → dist
       package.json        # contributes: views, commands, keybindings
-    agent-core/           # Mozaik environment, participants, tools  ← seli se u fork netaknut
-      src/environment.ts
-      src/participants/   # EditorAgent, UIBridge (Observer)
+    agent-core/           # Mozaik loop, tools, model  ← seli se u fork netaknut
+      src/index.ts        # javni API (nema import 'vscode')
+      src/session/        # createAgentSession, startTurn guards
+      src/participants/   # EditorAgent, UIBridge
       src/tools/          # read_file, list_dir, search, get_context, propose_edit
-      src/model/          # provider wiring (OpenAI-compat / lokalno)
+      src/model/          # Ollama Chat Completions + ModelConfig
+      src/workspace/      # WorkspacePort + path helpers
     shared/               # tipovi za poruke ext ↔ webview ↔ (kasnije) agent proces
 ```
 

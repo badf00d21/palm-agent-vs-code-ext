@@ -1,4 +1,4 @@
-import { isForbiddenModelName } from "./config.js";
+import { isForbiddenModelName } from "../model/config.js";
 
 export function assertCanStartTurn(
   text: string,

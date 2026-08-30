@@ -1,6 +1,7 @@
 {
   "name": "@palm-agent/agent-core",
   "version": "0.0.1",
+  "description": "Editor-free Mozaik agent loop, tools, and local inference for Palm Agent",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

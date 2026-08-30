@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { WorkspacePort } from "./port.js";
-import type { ReviewHost } from "./review.js";
-import { createWorkspaceTools } from "./tools.js";
+import type { WorkspacePort } from "../../src/workspace/port.js";
+import type { ReviewHost } from "../../src/tools/review.js";
+import { createWorkspaceTools } from "../../src/tools/tools.js";
 
 function fakeHost(overrides: Partial<ReviewHost> = {}): ReviewHost {
   return {
@@ -24,6 +24,7 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
     readFile: async () => "",
     listDir: async () => [],
     search: async () => [],
+    findFiles: async () => [],
     getContext: async () => ({ activeFile: null, selection: null }),
     ...overrides,
   };
@@ -38,6 +39,24 @@ describe("read_file", () => {
     const out = await invoke({ path: "a.ts" });
     expect(out.endsWith("\n[truncated]")).toBe(true);
     expect(out.startsWith("x".repeat(100_000))).toBe(true);
+  });
+
+  it("resolves a unique filename via findFiles", async () => {
+    const invoke = getInvoke(
+      "read_file",
+      fakePort({
+        readFile: async (path) => {
+          if (path === "src/abc-import.ts") {
+            return "export const x = 1;\n";
+          }
+          throw new Error(`ENOENT ${path}`);
+        },
+        findFiles: async (name) => (name === "abc-import.ts" ? ["src/abc-import.ts"] : []),
+      }),
+    );
+    expect(await invoke({ path: "abc-import.ts" })).toBe(
+      "[path: src/abc-import.ts]\nexport const x = 1;\n",
+    );
   });
 });
 
@@ -217,5 +236,24 @@ describe("propose_edit", () => {
     });
     expect(out).toBe("Proposed review rev_1: src/a.ts");
     expect(merged[0]).toEqual([{ path: "src/a.ts", original: "hello\n", proposed: "hi\n" }]);
+  });
+
+  it("returns the exact function from the file when search is a near miss", async () => {
+    const file = "function collectVoices() {\n  return 1;\n}\n";
+    const invoke = getInvoke(
+      "propose_edit",
+      fakePort({ readFile: async () => file }),
+    );
+    const out = await invoke({
+      files: [
+        {
+          path: "src/abc-import.ts",
+          search: "function collectVoices() {\n  return 9;\n}",
+          replace: "function collectVoices() {\n  return 2;\n}",
+        },
+      ],
+    });
+    expect(out).toContain("Use this exact text as search");
+    expect(out).toContain("function collectVoices() {\n  return 1;\n}");
   });
 });

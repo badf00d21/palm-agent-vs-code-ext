@@ -6,13 +6,13 @@ import {
   sendMessage,
 } from "@mozaik-ai/core";
 import type { ExtToWebview } from "@palm-agent/shared";
-import type { ModelConfig } from "./config.js";
-import { EditorAgent } from "./participants/editor-agent.js";
-import { UIBridge } from "./participants/ui-bridge.js";
-import type { WorkspacePort } from "./port.js";
+import type { ModelConfig } from "../model/config.js";
+import { EditorAgent } from "../participants/editor-agent.js";
+import { UIBridge } from "../participants/ui-bridge.js";
+import type { ReviewHost } from "../tools/review.js";
+import { SYSTEM_PROMPT, createWorkspaceTools } from "../tools/tools.js";
+import type { WorkspacePort } from "../workspace/port.js";
 import { assertCanStartTurn } from "./session-guards.js";
-import type { ReviewHost } from "./review.js";
-import { SYSTEM_PROMPT, createWorkspaceTools } from "./tools.js";
 
 export type SessionEventSink = (event: ExtToWebview) => void;
 

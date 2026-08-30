@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ExtToWebview } from "@palm-agent/shared";
-import { eventsFromFunctionCall, eventFromModelText } from "./participants/ui-bridge.js";
+import { eventsFromFunctionCall, eventFromModelText } from "../../src/participants/ui-bridge.js";
 
 describe("UIBridge mappers", () => {
   it("maps a function call", () => {

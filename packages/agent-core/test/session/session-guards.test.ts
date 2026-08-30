@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertCanStartTurn } from "./session-guards.js";
+import { assertCanStartTurn } from "../../src/session/session-guards.js";
 
 const ok = { busy: false, hasWorkspace: true, model: "deepseek-v4-pro" };
 

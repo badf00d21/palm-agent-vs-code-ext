@@ -1,7 +1,7 @@
 import type { ExtToWebview } from "@palm-agent/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import type { WorkspacePort } from "./port.js";
-import { createAgentSession } from "./session.js";
+import type { WorkspacePort } from "../../src/workspace/port.js";
+import { createAgentSession } from "../../src/session/session.js";
 
 const FILE_CONTENTS = "export const echo = true;\n";
 
@@ -11,6 +11,7 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
     readFile: async () => "",
     listDir: async () => [],
     search: async () => [],
+    findFiles: async () => [],
     getContext: async () => ({ activeFile: null, selection: null }),
     ...overrides,
   };

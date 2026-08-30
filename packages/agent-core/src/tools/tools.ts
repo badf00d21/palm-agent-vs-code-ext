@@ -1,6 +1,8 @@
 import type { Tool } from "@mozaik-ai/core";
-import { toPosix } from "./paths.js";
-import type { WorkspacePort } from "./port.js";
+import { locateWorkspaceFile } from "../workspace/locate.js";
+import { toPosix } from "../workspace/paths.js";
+import type { WorkspacePort } from "../workspace/port.js";
+import { exactFunctionInFile, functionNameFromSearch } from "./named-function.js";
 import type { ProposedFile, ReviewHost } from "./review.js";
 import { applySearchReplace } from "./search-replace.js";
 
@@ -8,10 +10,11 @@ const READ_LIMIT = 100_000;
 const SEARCH_LIMIT = 50;
 
 export const SYSTEM_PROMPT =
-  "You are a coding assistant in a local workspace. Use tools to read the workspace before answering about code. Do not invent file contents. " +
+  "You are a coding assistant in a local workspace. Use tools to find and read code before answering. Do not invent file contents or paths. " +
+  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. " +
   "When the user asks to change, refactor, apply, or edit code you MUST call propose_edit. Do not paste the new function as the final answer. Never say you cannot apply edits. " +
-  "propose_edit.search is a literal substring copied from read_file. Do not use wildcards like {[^}]*}. If propose_edit fails, copy the exact bytes from the read_file output you already have — do not ask the human for a snippet. " +
-  "Never write to disk yourself. Never print a propose_edit JSON template or placeholders like <file-path>. Call the tool. The human reviews Keep All / Undo All. After a successful propose_edit, reply in one short sentence. " +
+  "propose_edit.search is a literal substring copied from the read_file output. Do not use wildcards like {[^}]*}. If propose_edit returns exact function text, use that as search and call propose_edit again. " +
+  "Never write to disk yourself. Never print a propose_edit JSON template or placeholders like <file-path>. After a successful propose_edit, reply in one short sentence. " +
   "Do not roleplay, do not use personal names, and do not reply with a single unrelated word.";
 
 /** Model invented a wildcard body (`{[^}]*}`), not a regex that already exists in the file. */
@@ -23,7 +26,8 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
   return [
     {
       name: "read_file",
-      description: "Read a UTF-8 text file in the workspace. Path is relative to the workspace root.",
+      description:
+        "Read a UTF-8 text file. Path may be workspace-relative or a unique filename (abc-import.ts).",
       strict: true,
       type: "function",
       parameters: {
@@ -32,16 +36,17 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
         required: ["path"],
       },
       invoke: async (args) => {
-        const filePath = String(args.path ?? "");
-        try {
-          const text = await port.readFile(filePath);
-          if (text.length > READ_LIMIT) {
-            return `${text.slice(0, READ_LIMIT)}\n[truncated]`;
-          }
-          return text;
-        } catch (error) {
-          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        const located = await locateWorkspaceFile(port, String(args.path ?? ""));
+        if ("error" in located) {
+          return `Error: ${located.error}`;
         }
+        const prefix = located.path !== toPosix(String(args.path ?? "")).replace(/^\.\//, "")
+          ? `[path: ${located.path}]\n`
+          : "";
+        if (located.text.length > READ_LIMIT) {
+          return `${prefix}${located.text.slice(0, READ_LIMIT)}\n[truncated]`;
+        }
+        return `${prefix}${located.text}`;
       },
     },
     {
@@ -65,7 +70,8 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
     },
     {
       name: "search",
-      description: "Search workspace file contents with a text query. Optional glob limits files.",
+      description:
+        "Search workspace file contents. Use this to find which file contains a function or symbol when the user did not give a path.",
       strict: true,
       type: "function",
       parameters: {
@@ -164,24 +170,28 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
         }
         const proposed: ProposedFile[] = [];
         for (const filePath of order) {
-          let original: string;
-          try {
-            original = await port.readFile(filePath);
-          } catch (error) {
-            return `Error: ${error instanceof Error ? error.message : String(error)}`;
+          const located = await locateWorkspaceFile(port, filePath);
+          if ("error" in located) {
+            return `Error: ${located.error}`;
           }
-          const storedPath = toPosix(filePath).replace(/^\.\//, "");
-          let text = original;
+          const storedPath = located.path;
+          let text = located.text;
           for (const block of grouped.get(filePath) ?? []) {
             const result = applySearchReplace(text, block.search, block.replace);
             if (!result.ok) {
-              return result.reason === "ambiguous"
-                ? `Error: Search matches more than once in ${storedPath}`
-                : `Error: Search not found in ${storedPath}`;
+              if (result.reason === "ambiguous") {
+                return `Error: Search matches more than once in ${storedPath}`;
+              }
+              const name = functionNameFromSearch(block.search);
+              const exact = name ? exactFunctionInFile(text, name) : undefined;
+              if (exact) {
+                return `Error: Search not found in ${storedPath}. Use this exact text as search:\n---\n${exact}\n---`;
+              }
+              return `Error: Search not found in ${storedPath}`;
             }
             text = result.text;
           }
-          proposed.push({ path: storedPath, original, proposed: text });
+          proposed.push({ path: storedPath, original: located.text, proposed: text });
         }
         const merged = reviewHost.merge(proposed);
         return `Proposed review ${merged.id}: ${merged.paths.join(", ")}`;

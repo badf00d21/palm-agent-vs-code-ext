@@ -19,5 +19,7 @@ export interface WorkspacePort {
   readFile(path: string): Promise<string>;
   listDir(path: string): Promise<DirEntry[]>;
   search(query: string, glob?: string): Promise<SearchHit[]>;
+  /** Workspace-relative POSIX paths whose basename or glob matches. */
+  findFiles(nameOrGlob: string): Promise<string[]>;
   getContext(): Promise<EditorContext>;
 }
