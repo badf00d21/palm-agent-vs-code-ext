@@ -93,21 +93,27 @@ describe("applyExtMessage", () => {
     const first = applyExtMessage([], {
       type: "diff_proposed",
       id: "rev_1",
-      files: [{ path: "a.ts" }],
+      files: [{ path: "a.ts", kind: "edit" }],
     });
     expect(first).toEqual([
-      { role: "review", id: "rev_1", files: ["a.ts"], status: "pending" },
+      { role: "review", id: "rev_1", files: [{ path: "a.ts", kind: "edit" }], status: "pending" },
     ]);
     const second = applyExtMessage(first, {
       type: "diff_proposed",
       id: "rev_1",
-      files: [{ path: "a.ts" }, { path: "b.ts" }],
+      files: [
+        { path: "a.ts", kind: "edit" },
+        { path: "b.ts", kind: "edit" },
+      ],
     });
     expect(second).toHaveLength(1);
     expect(second[0]).toEqual({
       role: "review",
       id: "rev_1",
-      files: ["a.ts", "b.ts"],
+      files: [
+        { path: "a.ts", kind: "edit" },
+        { path: "b.ts", kind: "edit" },
+      ],
       status: "pending",
     });
   });
@@ -127,7 +133,7 @@ describe("applyExtMessage", () => {
     const pending = applyExtMessage([], {
       type: "diff_proposed",
       id: "rev_1",
-      files: [{ path: "a.ts" }],
+      files: [{ path: "a.ts", kind: "edit" }],
     });
     const next = applyExtMessage(pending, { type: "diff_settled", id: "rev_1", status: "kept" });
     expect(next[0]).toMatchObject({ role: "review", status: "kept" });

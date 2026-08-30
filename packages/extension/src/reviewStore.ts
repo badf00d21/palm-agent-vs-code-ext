@@ -10,7 +10,10 @@ export interface ReviewStore {
   merge: ReviewHost["merge"];
   apply(id: string): Promise<ExtToWebview>;
   reject(id: string): ExtToWebview;
-  lookup(id: string, path?: string): { path: string; proposed: string } | { error: string };
+  lookup(
+    id: string,
+    path?: string,
+  ): { path: string; proposed: string; kind: ProposedFile["kind"] } | { error: string };
   proposedFor(posixPath: string): string | undefined;
   onDidChangeProposed(listener: (path: string) => void): { dispose(): void };
 }
@@ -18,7 +21,10 @@ export interface ReviewStore {
 export interface ReviewStoreDeps {
   emit: (event: ExtToWebview) => void;
   readFile: (path: string) => Promise<string>;
-  applyFiles: (files: Array<{ path: string; proposed: string }>) => Promise<void>;
+  exists: (path: string) => Promise<"file" | "dir" | "absent">;
+  applyFiles: (
+    files: Array<{ path: string; proposed: string; kind: ProposedFile["kind"] }>,
+  ) => Promise<void>;
   readOpenText?: (path: string) => Promise<{ text: string; dirty: boolean } | undefined>;
   createId?: () => string;
 }
@@ -51,7 +57,7 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
     deps.emit({
       type: "diff_proposed",
       id: pending.id,
-      files: pending.files.map((f) => ({ path: f.path })),
+      files: pending.files.map((f) => ({ path: f.path, kind: f.kind })),
     });
     return { id: pending.id, paths: pending.files.map((f) => f.path) };
   }
@@ -62,6 +68,13 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
     }
 
     for (const file of pending.files) {
+      if (file.kind === "create" || file.kind === "mkdir") {
+        const presence = await deps.exists(file.path);
+        if (presence !== "absent") {
+          return { type: "error", message: `File changed since proposal: ${file.path}` };
+        }
+        continue;
+      }
       const open = deps.readOpenText ? await deps.readOpenText(file.path) : undefined;
       if (open?.dirty && open.text !== file.original) {
         return { type: "error", message: `File changed since proposal: ${file.path}` };
@@ -74,7 +87,7 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
 
     try {
       await deps.applyFiles(
-        pending.files.map((f) => ({ path: f.path, proposed: f.proposed })),
+        pending.files.map((f) => ({ path: f.path, proposed: f.proposed, kind: f.kind })),
       );
     } catch (err) {
       return { type: "error", message: String(err).slice(0, 400) };
@@ -104,7 +117,7 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
   function lookup(
     id: string,
     path?: string,
-  ): { path: string; proposed: string } | { error: string } {
+  ): { path: string; proposed: string; kind: ProposedFile["kind"] } | { error: string } {
     if (id !== pending?.id) {
       return { error: "No pending review" };
     }
@@ -114,11 +127,17 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
       if (!file) {
         return { error: "File is not in the review" };
       }
-      return { path: file.path, proposed: file.proposed };
+      if (file.kind === "mkdir") {
+        return { error: "Directory has no diff" };
+      }
+      return { path: file.path, proposed: file.proposed, kind: file.kind };
     }
 
     const file = pending.files[0];
-    return { path: file.path, proposed: file.proposed };
+    if (file.kind === "mkdir") {
+      return { error: "Directory has no diff" };
+    }
+    return { path: file.path, proposed: file.proposed, kind: file.kind };
   }
 
   function proposedFor(posixPath: string): string | undefined {

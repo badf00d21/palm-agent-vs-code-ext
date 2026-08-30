@@ -15,7 +15,7 @@ export interface ToolLine {
 export interface ReviewLine {
   role: "review";
   id: string;
-  files: string[];
+  files: Array<{ path: string; kind: "edit" | "create" | "mkdir" }>;
   status: "pending" | "kept" | "undone";
 }
 
@@ -79,7 +79,7 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
     return [...messages, { role: "assistant", text: `Error: ${msg.message}` }];
   }
   if (msg.type === "diff_proposed") {
-    const files = msg.files.map((file) => file.path);
+    const files = msg.files;
     const exists = messages.some((line) => line.role === "review" && line.id === msg.id);
     if (exists) {
       return messages.map((line) =>

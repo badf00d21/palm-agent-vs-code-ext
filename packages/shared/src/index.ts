@@ -1,5 +1,6 @@
 export interface DiffFile {
   path: string;
+  kind: "edit" | "create" | "mkdir";
 }
 
 export type ToolCallStatus = "running" | "done";

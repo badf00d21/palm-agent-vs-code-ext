@@ -20,7 +20,9 @@ export function readModelConfig(): ModelConfig {
   };
 }
 
-async function applyFiles(files: Array<{ path: string; proposed: string }>): Promise<void> {
+async function applyFiles(
+  files: Array<{ path: string; proposed: string; kind: "edit" | "create" | "mkdir" }>,
+): Promise<void> {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;
   if (!root) {
     throw new Error("No workspace folder open");
@@ -67,6 +69,7 @@ export function createSessionHost(log?: {
   const store = createReviewStore({
     emit,
     readFile: (path) => port.readFile(path),
+    exists: (path) => port.exists(path),
     applyFiles,
     readOpenText,
   });
