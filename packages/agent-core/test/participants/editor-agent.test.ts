@@ -72,10 +72,13 @@ describe("EditorAgent tool failure feedback", () => {
     bodies = [];
     globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)) as { messages: ChatMessage[] });
-      return new Response(
-        JSON.stringify({ choices: [{ message: { role: "assistant", content: "ok" } }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      const body =
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })}\n\n` +
+        "data: [DONE]\n\n";
+      return new Response(body, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
     }) as typeof fetch;
   });
 
