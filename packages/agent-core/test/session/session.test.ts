@@ -110,7 +110,13 @@ describe("createAgentSession inference failures", () => {
 
     expect(posts).toBe(2);
     expect(events).toEqual([
-      { type: "tool_call", name: "read_file", args: { path: "echo.ts" } },
+      {
+        type: "tool_call",
+        name: "read_file",
+        args: { path: "echo.ts" },
+        id: "call_unknown",
+        status: "running",
+      },
       { type: "assistant_delta", text: "echo.ts exports echo" },
       { type: "done" },
     ]);
