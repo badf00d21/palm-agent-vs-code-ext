@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
 import { applyExtMessage, shouldClearBusy, type ChatLine, type ReviewLine } from "./chatMessages";
 import { contextRingRatio, formatContextTooltip } from "./contextMeter";
+import { AssistantMarkdown, isPlainErrorText } from "./markdown";
 import { getVsCodeApi } from "./vscode";
 
 function roleLabel(role: ChatLine["role"]): string {
@@ -294,11 +295,16 @@ export function App() {
           messages.map((message, index) => (
             <article
               key={message.role === "review" ? message.id : `${message.role}-${index}`}
-              className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}${message.role === "assistant" && message.text.startsWith("Error: ") ? " error" : ""}`}
+              className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}${message.role === "assistant" && isPlainErrorText(message.text) ? " error" : ""}`}
             >
               <span className="role">{roleLabel(message.role)}</span>
               {message.role === "review" ? (
                 <ReviewCard message={message} postMessage={postMessage} />
+              ) : message.role === "assistant" && !isPlainErrorText(message.text) ? (
+                <AssistantMarkdown
+                  text={message.text}
+                  onOpenUrl={(url) => postMessage({ type: "open_url", url })}
+                />
               ) : (
                 <p>{message.text}</p>
               )}

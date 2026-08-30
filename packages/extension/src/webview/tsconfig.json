@@ -12,5 +12,5 @@
       "@palm-agent/shared": ["../../../shared/src/index.ts"]
     }
   },
-  "include": [".", "../../../shared/src/index.ts"]
+  "include": [".", "../safeUrl.ts", "../../../shared/src/index.ts"]
 }

@@ -6,6 +6,7 @@ import {
   type WorkspacePort,
 } from "@palm-agent/agent-core";
 import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
+import { isSafeMarkdownUrl } from "./safeUrl";
 import type { ReviewStore } from "./reviewStore";
 
 type SessionHost = { session: AgentSession; store: ReviewStore; port: WorkspacePort };
@@ -102,6 +103,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post({ type: "file_suggestions", query: message.query, paths });
         } catch {
           post({ type: "file_suggestions", query: message.query, paths: [] });
+        }
+        return;
+      }
+      case "open_url": {
+        if (!isSafeMarkdownUrl(message.url)) {
+          return;
+        }
+        try {
+          await vscode.env.openExternal(vscode.Uri.parse(message.url));
+        } catch {
+          /* fail silently */
         }
         return;
       }

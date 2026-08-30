@@ -164,6 +164,48 @@ body {
   color: var(--vscode-errorForeground);
 }
 
+.bubble.assistant .md p {
+  margin: 0 0 0.6em;
+  white-space: normal;
+}
+
+.bubble.assistant .md p:last-child {
+  margin-bottom: 0;
+}
+
+.bubble.assistant .md pre {
+  margin: 0.4em 0;
+  padding: 8px;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+}
+
+.bubble.assistant .md code {
+  font-family: var(--vscode-editor-font-family);
+}
+
+.bubble.assistant .md a {
+  color: var(--vscode-textLink-foreground);
+}
+
+.bubble.assistant .md ul,
+.bubble.assistant .md ol {
+  margin: 0.4em 0;
+  padding-left: 1.2em;
+}
+
+.bubble.assistant .md h1,
+.bubble.assistant .md h2,
+.bubble.assistant .md h3 {
+  font-size: inherit;
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+}
+
 .composer {
   display: flex;
   flex-direction: column;
