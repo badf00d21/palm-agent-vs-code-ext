@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
 import { applyExtMessage, shouldClearBusy, type ChatLine, type ReviewLine } from "./chatMessages";
+import { contextRingRatio, formatContextTooltip } from "./contextMeter";
 import { getVsCodeApi } from "./vscode";
 
 function roleLabel(role: ChatLine["role"]): string {
@@ -28,18 +29,25 @@ function ReviewCard({
   const fileLabel = `${message.files.length} file${message.files.length === 1 ? "" : "s"}`;
   const statusText =
     message.status === "kept" ? "Kept" : message.status === "undone" ? "Undone" : undefined;
+  const filesId = `review-files-${message.id}`;
   const hasReviewable = message.files.some((file) => file.kind !== "mkdir");
 
   return (
     <>
       <div className="review-head">
-        <button type="button" onClick={() => setOpen((value) => !value)}>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? filesId : undefined}
+          aria-label={statusText ? `${fileLabel}, ${statusText}` : `${fileLabel}, pending review`}
+          onClick={() => setOpen((value) => !value)}
+        >
           {fileLabel}
         </button>
-        {statusText ? <span>{statusText}</span> : null}
+        {statusText ? <span className="review-status">{statusText}</span> : null}
       </div>
       {open ? (
-        <>
+        <div id={filesId}>
           <ul className="review-list">
             {message.files.map((file) => (
               <li key={file.path}>
@@ -53,7 +61,7 @@ function ReviewCard({
                     {file.kind === "create" ? <span className="review-kind"> new</span> : null}
                   </button>
                 ) : (
-                  <span>
+                  <span className={pending ? undefined : "review-file-static"}>
                     {file.path}
                     {file.kind === "create" ? <span className="review-kind"> new</span> : null}
                   </span>
@@ -76,9 +84,41 @@ function ReviewCard({
               ) : null}
             </div>
           ) : null}
-        </>
+        </div>
       ) : null}
     </>
+  );
+}
+
+const RING_RADIUS = 5.5;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function ContextRing({ used, max }: { used: number; max: number | null }) {
+  const label = formatContextTooltip(used, max);
+  const ratio = contextRingRatio(used, max);
+  const offset = RING_CIRCUMFERENCE * (1 - ratio);
+  return (
+    <svg
+      className="context-ring"
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      role="img"
+      aria-label={label}
+    >
+      <title>{label}</title>
+      <circle className="context-ring-track" cx="7" cy="7" r={RING_RADIUS} fill="none" />
+      <circle
+        className="context-ring-fill"
+        cx="7"
+        cy="7"
+        r={RING_RADIUS}
+        fill="none"
+        strokeDasharray={RING_CIRCUMFERENCE}
+        strokeDashoffset={offset}
+        transform="rotate(-90 7 7)"
+      />
+    </svg>
   );
 }
 
@@ -95,8 +135,10 @@ export function App() {
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestQuery, setSuggestQuery] = useState<string | null>(null);
+  const [suggestReady, setSuggestReady] = useState(false);
   const [hint, setHint] = useState("");
   const [highlight, setHighlight] = useState(0);
+  const [context, setContext] = useState<{ used: number; max: number | null } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const vscodeRef = useRef(getVsCodeApi());
@@ -111,12 +153,18 @@ export function App() {
           return;
         }
         setSuggestions(msg.paths);
+        setSuggestReady(true);
         setHighlight(0);
+        return;
+      }
+      if (msg.type === "context_usage") {
+        setContext({ used: msg.used, max: msg.max });
         return;
       }
       if (msg.type === "selection") {
         if (msg.text) {
-          setInput((prev) => (prev ? `${prev}\n${msg.text}` : msg.text));
+          const selected = msg.text;
+          setInput((prev) => (prev ? `${prev}\n${selected}` : selected));
           setHint("");
         } else {
           setHint("No selection");
@@ -163,24 +211,24 @@ export function App() {
     }, 150);
   };
 
+  const dismissSuggest = () => {
+    pendingSuggest.current = null;
+    window.clearTimeout(suggestTimer.current);
+    setSuggestions([]);
+    setSuggestQuery(null);
+    setSuggestReady(false);
+    setHighlight(0);
+  };
+
   const updateAtQuery = (value: string, caret: number) => {
     const query = activeAtQuery(value, caret);
-    if (query === null) {
-      pendingSuggest.current = null;
-      window.clearTimeout(suggestTimer.current);
-      setSuggestions([]);
-      setSuggestQuery(null);
-      setHighlight(0);
-      return;
-    }
-    if (query === "") {
-      setSuggestions([]);
-      setSuggestQuery("");
-      setHighlight(0);
-      scheduleSuggest("");
+    if (query === null || query === "") {
+      dismissSuggest();
       return;
     }
     setSuggestQuery(query);
+    setSuggestReady(false);
+    setHighlight(0);
     scheduleSuggest(query);
   };
 
@@ -194,11 +242,17 @@ export function App() {
       return;
     }
     const next = `${value.slice(0, atStart)}@${path} ${value.slice(caret)}`;
+    const nextCaret = atStart + 1 + path.length + 1;
     setInput(next);
-    setSuggestions([]);
-    setSuggestQuery(null);
-    setHighlight(0);
-    pendingSuggest.current = null;
+    dismissSuggest();
+    queueMicrotask(() => {
+      const field = textareaRef.current;
+      if (!field) {
+        return;
+      }
+      field.focus();
+      field.setSelectionRange(nextCaret, nextCaret);
+    });
   };
 
   const send = () => {
@@ -208,8 +262,7 @@ export function App() {
     }
     setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
-    setSuggestions([]);
-    setSuggestQuery(null);
+    dismissSuggest();
     setHint("");
     setBusy(true);
     vscodeRef.current.postMessage({ type: "user_message", text });
@@ -219,16 +272,29 @@ export function App() {
     vscodeRef.current.postMessage(msg);
   };
 
+  const shownSuggestions =
+    suggestQuery && suggestQuery.length > 0
+      ? suggestions.filter((path) => path.toLowerCase().includes(suggestQuery.toLowerCase()))
+      : [];
+  const showSuggest =
+    suggestQuery !== null &&
+    suggestQuery !== "" &&
+    (shownSuggestions.length > 0 || suggestReady);
+  const activeSuggestIndex = Math.min(highlight, Math.max(shownSuggestions.length - 1, 0));
+
   return (
     <div className="app">
       <div className="messages" ref={listRef}>
         {messages.length === 0 && !busy ? (
-          <p className="empty">Ask about a file in this workspace.</p>
+          <p className="empty">
+            Ask about a file in this workspace.{"\n"}
+            Type @ to mention a path.
+          </p>
         ) : (
           messages.map((message, index) => (
             <article
               key={message.role === "review" ? message.id : `${message.role}-${index}`}
-              className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}`}
+              className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}${message.role === "assistant" && message.text.startsWith("Error: ") ? " error" : ""}`}
             >
               <span className="role">{roleLabel(message.role)}</span>
               {message.role === "review" ? (
@@ -263,17 +329,18 @@ export function App() {
         }}
       >
         <div className="composer-main">
-          {suggestQuery !== null ? (
-            <ul className="suggest" role="listbox">
-              {suggestions.length === 0 ? (
+          {showSuggest ? (
+            <ul className="suggest" id="file-suggest" role="listbox" aria-label="Workspace files">
+              {shownSuggestions.length === 0 ? (
                 <li className="suggest-empty">No files</li>
               ) : (
-                suggestions.map((path, index) => (
+                shownSuggestions.map((path, index) => (
                   <li key={path}>
                     <button
                       type="button"
+                      id={`file-suggest-${index}`}
                       role="option"
-                      aria-selected={index === highlight}
+                      aria-selected={index === activeSuggestIndex}
                       onClick={() => insertPath(path)}
                     >
                       {path}
@@ -283,13 +350,24 @@ export function App() {
               )}
             </ul>
           ) : null}
-          {hint ? <p className="composer-hint">{hint}</p> : null}
+          {hint ? (
+            <p className="composer-hint" role="status">
+              {hint}
+            </p>
+          ) : null}
           <textarea
             ref={textareaRef}
             value={input}
+            aria-autocomplete="list"
+            aria-expanded={showSuggest}
+            aria-controls={showSuggest ? "file-suggest" : undefined}
+            aria-activedescendant={
+              showSuggest && shownSuggestions.length > 0 ? `file-suggest-${activeSuggestIndex}` : undefined
+            }
             onChange={(event) => {
               const value = event.target.value;
               setInput(value);
+              setHint("");
               updateAtQuery(value, event.target.selectionStart ?? value.length);
             }}
             onSelect={(event) => {
@@ -299,16 +377,13 @@ export function App() {
             onKeyDown={(event) => {
               if (suggestQuery !== null && event.key === "Escape") {
                 event.preventDefault();
-                setSuggestions([]);
-                setSuggestQuery(null);
-                setHighlight(0);
-                pendingSuggest.current = null;
+                dismissSuggest();
                 return;
               }
-              if (suggestions.length > 0) {
+              if (shownSuggestions.length > 0) {
                 if (event.key === "ArrowDown") {
                   event.preventDefault();
-                  setHighlight((index) => Math.min(index + 1, suggestions.length - 1));
+                  setHighlight((index) => Math.min(index + 1, shownSuggestions.length - 1));
                   return;
                 }
                 if (event.key === "ArrowUp") {
@@ -318,7 +393,7 @@ export function App() {
                 }
                 if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
                   event.preventDefault();
-                  insertPath(suggestions[highlight] ?? suggestions[0]);
+                  insertPath(shownSuggestions[activeSuggestIndex] ?? shownSuggestions[0]);
                   return;
                 }
               }
@@ -333,26 +408,26 @@ export function App() {
           />
         </div>
         <div className="composer-actions">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => vscodeRef.current.postMessage({ type: "get_selection" })}
-          >
-            Add selection
-          </button>
-          {busy ? (
+          {context ? <ContextRing used={context.used} max={context.max} /> : null}
+          <div className="composer-buttons">
             <button
               type="button"
-              className="waiting-stop"
-              onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}
+              className="secondary"
+              disabled={busy}
+              onClick={() => vscodeRef.current.postMessage({ type: "get_selection" })}
             >
-              Stop
+              Add selection
             </button>
-          ) : (
-            <button type="submit" disabled={input.trim().length === 0}>
-              Send
-            </button>
-          )}
+            {busy ? (
+              <button type="button" onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}>
+                Stop
+              </button>
+            ) : (
+              <button type="submit" disabled={input.trim().length === 0}>
+                Send
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </div>
