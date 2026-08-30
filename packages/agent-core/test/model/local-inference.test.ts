@@ -169,6 +169,72 @@ describe("runLocalChatCompletions", () => {
     expect(delivered[0]?.content.text).toBe("hello from qwen");
   });
 
+  it("sends stream_options.include_usage and emits context_usage from total_tokens", async () => {
+    const events: Array<{ type: string; data: unknown }> = [];
+    const environment = {
+      deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
+        events.push({ type: item.getType(), data: item.data });
+      },
+      deliverModelMessage: () => undefined,
+      deliverFunctionCall: () => {
+        throw new Error("unexpected function call");
+      },
+    } as unknown as AgenticEnvironment;
+
+    const context = ModelContext.create("test");
+    context.addContextItem(UserMessageItem.create("hi"));
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context,
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => undefined,
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          stream_options?: { include_usage?: boolean };
+        };
+        expect(body.stream_options?.include_usage).toBe(true);
+        const chunks = [
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })}\n\n`,
+          `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 } })}\n\n`,
+          "data: [DONE]\n\n",
+        ].join("");
+        return new Response(chunks, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+      },
+    });
+
+    expect(events.some((e) => e.type === "context_usage" && (e.data as { used: number }).used === 12)).toBe(
+      true,
+    );
+  });
+
+  it("does not emit context_usage when the stream has no usage", async () => {
+    const types: string[] = [];
+    const environment = {
+      deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
+        types.push(item.getType());
+      },
+      deliverModelMessage: () => undefined,
+      deliverFunctionCall: () => {
+        throw new Error("unexpected function call");
+      },
+    } as unknown as AgenticEnvironment;
+    const context = ModelContext.create("test");
+    context.addContextItem(UserMessageItem.create("hi"));
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context,
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => undefined,
+      fetchImpl: async () => sseResponse([{ delta: { content: "ok" }, finish_reason: "stop" }]),
+    });
+    expect(types).not.toContain("context_usage");
+  });
+
   it("maps fetch failure to the Ollama unreachable string", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
 

@@ -22,6 +22,13 @@ export interface NarrationPayload {
   text: string;
 }
 
+/** Token usage for the composer meter — UI-only, never context. */
+export const CONTEXT_USAGE_EVENT = "context_usage";
+
+export interface ContextUsagePayload {
+  used: number;
+}
+
 let syntheticCallCounter = 0;
 
 export type ChatCompletionFetch = (
@@ -349,6 +356,7 @@ export async function runLocalChatCompletions(
       max_tokens: MAX_OUTPUT_TOKENS,
     };
     body.stream = true;
+    body.stream_options = { include_usage: true };
     if (params.tools.length > 0) {
       body.tools = mapTools(params.tools);
       body.tool_choice = "auto";
@@ -389,6 +397,13 @@ export async function runLocalChatCompletions(
     if (!isCurrentTurn(params)) {
       params.trace?.("completion dropped: stale turn");
       return;
+    }
+    const used = assembled.usage?.total_tokens;
+    if (typeof used === "number" && Number.isFinite(used)) {
+      params.environment.deliverSemanticEvent(
+        params.caller,
+        new SemanticEvent<ContextUsagePayload>(CONTEXT_USAGE_EVENT, { used }),
+      );
     }
     const hasNativeTools = assembled.toolCalls.length > 0;
     const emptyContent = !assembled.content.trim();
