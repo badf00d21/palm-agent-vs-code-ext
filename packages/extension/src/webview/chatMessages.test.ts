@@ -42,6 +42,18 @@ describe("applyExtMessage", () => {
     });
   });
 
+  it("leaves messages unchanged when tool_call done has no matching id", () => {
+    const prev: ChatLine[] = [{ role: "user", text: "x" }];
+    const next = applyExtMessage(prev, {
+      type: "tool_call",
+      name: "",
+      args: {},
+      id: "missing",
+      status: "done",
+    });
+    expect(next).toBe(prev);
+  });
+
   it("updates a tool line from running to done by id", () => {
     const running = applyExtMessage([], {
       type: "tool_call",

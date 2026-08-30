@@ -357,9 +357,9 @@ describe("runLocalChatCompletions", () => {
     expect(failed).toMatch(/output token limit/);
   });
 
-  it("still delivers an empty answer that finished normally", async () => {
+  it("fails when SSE finishes with empty content and no tool calls", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
-    const delivered: ModelMessageItem[] = [];
+    let delivered = false;
     let failed = "";
 
     await runLocalChatCompletions({
@@ -368,8 +368,8 @@ describe("runLocalChatCompletions", () => {
       tools: [],
       environment: {
         deliverSemanticEvent: () => undefined,
-        deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
-          delivered.push(item);
+        deliverModelMessage: () => {
+          delivered = true;
         },
         deliverFunctionCall: () => {
           throw new Error("unexpected function call");
@@ -385,11 +385,122 @@ describe("runLocalChatCompletions", () => {
         ]),
     });
 
-    expect(failed).toBe("");
-    expect(delivered).toHaveLength(1);
+    expect(delivered).toBe(false);
+    expect(failed).toMatch(/Empty completion from provider/);
   });
 
-  it("delivers narration as a semantic event when content accompanies native tool calls", async () => {
+  it("fails when the provider returns JSON instead of SSE", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    let delivered = false;
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverSemanticEvent: () => undefined,
+        deliverModelMessage: () => {
+          delivered = true;
+        },
+        deliverFunctionCall: () => {
+          delivered = true;
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { role: "assistant", content: "hello from json" },
+                finish_reason: "stop",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    });
+
+    expect(delivered).toBe(false);
+    expect(failed).toMatch(/Empty completion from provider/);
+  });
+
+  it("fails when SSE has no data lines", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    let delivered = false;
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverSemanticEvent: () => undefined,
+        deliverModelMessage: () => {
+          delivered = true;
+        },
+        deliverFunctionCall: () => {
+          delivered = true;
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        new Response("data: [DONE]\n\n", {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+    });
+
+    expect(delivered).toBe(false);
+    expect(failed).toMatch(/Empty completion from provider/);
+  });
+
+  it("emits one narration for assembled prose that was not streamed", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const narrations: string[] = [];
+    const delivered: ModelMessageItem[] = [];
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
+          narrations.push((item.data as { text?: string }).text ?? "");
+        },
+        deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
+          delivered.push(item);
+        },
+        deliverFunctionCall: () => {
+          throw new Error("unexpected function call");
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        sseResponse([
+          {
+            delta: { role: "assistant", content: '{"language": "TypeScript"}' },
+            finish_reason: "stop",
+          },
+        ]),
+    });
+
+    expect(narrations).toEqual(['{"language": "TypeScript"}']);
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0]?.content.text).toBe('{"language": "TypeScript"}');
+  });
+
+  it("does not narrate when content accompanies native tool_calls", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const narrations: Array<SemanticEvent<unknown>> = [];
     const calls: FunctionCallItem[] = [];

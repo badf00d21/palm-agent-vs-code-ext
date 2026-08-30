@@ -245,13 +245,6 @@ export function App() {
                 ? "Waiting for reply"
                 : `Loading model / thinking… ${waitSeconds}s`}
             </p>
-            <button
-              type="button"
-              className="waiting-stop"
-              onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}
-            >
-              Stop
-            </button>
           </article>
         ) : null}
       </div>

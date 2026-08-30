@@ -14,7 +14,7 @@ import {
 import { parse as parseJsonc } from "jsonc-parser";
 import { readSseChatCompletion } from "./chat-stream.js";
 
-/** Assistant prose that arrived alongside native tool calls — UI-only, never context. */
+/** Streamed assistant prose — UI-only, never context. */
 export const NARRATION_EVENT = "assistant_narration";
 
 export interface NarrationPayload {
@@ -361,12 +361,14 @@ export async function runLocalChatCompletions(
     if (!response.ok) {
       throw await readHttpError(response);
     }
+    let emittedNarration = false;
     const assembled = await readSseChatCompletion(
       response,
       (text) => {
         if (!isCurrentTurn(params) || !text) {
           return;
         }
+        emittedNarration = true;
         params.environment.deliverSemanticEvent(
           params.caller,
           new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text }),
@@ -377,6 +379,29 @@ export async function runLocalChatCompletions(
     if (!isCurrentTurn(params)) {
       params.trace?.("completion dropped: stale turn");
       return;
+    }
+    const hasNativeTools = assembled.toolCalls.length > 0;
+    const emptyContent = !assembled.content.trim();
+    if (!hasNativeTools && emptyContent) {
+      if (assembled.finishReason === "length") {
+        params.onFailed(
+          "Model hit its output token limit without a usable answer. Ask again, or ask for a smaller change.",
+        );
+      } else {
+        params.onFailed("Empty completion from provider");
+      }
+      return;
+    }
+    if (
+      !hasNativeTools &&
+      !emptyContent &&
+      !emittedNarration &&
+      parseToolCallsFromContent(assembled.content).length === 0
+    ) {
+      params.environment.deliverSemanticEvent(
+        params.caller,
+        new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text: assembled.content }),
+      );
     }
     deliverCompletion(params, {
       choices: [

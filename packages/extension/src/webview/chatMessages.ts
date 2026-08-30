@@ -68,6 +68,9 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
         index === existing && line.role === "tool" ? { ...line, status: "done" } : line,
       );
     }
+    if (msg.status === "done") {
+      return messages;
+    }
     const detail = formatToolArgs(msg.args);
     const text = detail ? `${msg.name}  ${detail}` : msg.name;
     return [...messages, { role: "tool", text, id: msg.id, status: msg.status }];
