@@ -17,6 +17,18 @@ describe("iterateSseData", () => {
     ].join("\n");
     expect(iterateSseData(text)).toEqual(['{"choices":[{"delta":{"content":"Hi"}}]}']);
   });
+
+  it("ignores data payloads after [DONE] in the same text", () => {
+    const text = [
+      'data: {"choices":[{"delta":{"content":"A"}}]}',
+      "",
+      "data: [DONE]",
+      "",
+      'data: {"choices":[{"delta":{"content":"B"}}]}',
+      "",
+    ].join("\n");
+    expect(iterateSseData(text)).toEqual(['{"choices":[{"delta":{"content":"A"}}]}']);
+  });
 });
 
 describe("applyChatChunk + streamMode", () => {
@@ -114,5 +126,40 @@ describe("readSseChatCompletion", () => {
         controller.signal,
       ),
     ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("rejects with AbortError when aborted while a read is pending", async () => {
+    const controller = new AbortController();
+    const body = new ReadableStream<Uint8Array>({
+      start() {
+        /* leave the stream open so reader.read() waits */
+      },
+    });
+    const pending = readSseChatCompletion(
+      new Response(body, { headers: { "Content-Type": "text/event-stream" } }),
+      () => undefined,
+      controller.signal,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("applies only payloads before [DONE]", async () => {
+    const body = [
+      'data: {"choices":[{"delta":{"content":"A"}}]}',
+      "",
+      "data: [DONE]",
+      "",
+      'data: {"choices":[{"delta":{"content":"B"},"finish_reason":"stop"}]}',
+      "",
+    ].join("\n");
+    const deltas: string[] = [];
+    const acc = await readSseChatCompletion(
+      new Response(body, { headers: { "Content-Type": "text/event-stream" } }),
+      (text) => deltas.push(text),
+    );
+    expect(deltas).toEqual(["A"]);
+    expect(acc.content).toBe("A");
   });
 });

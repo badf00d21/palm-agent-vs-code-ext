@@ -15,6 +15,12 @@ export function emptyAssembly(): AssembledCompletion {
   return { content: "", finishReason: null, toolCalls: [] };
 }
 
+function abortError(): Error {
+  const error = new Error("This operation was aborted");
+  error.name = "AbortError";
+  return error;
+}
+
 export function iterateSseData(text: string): string[] {
   const out: string[] = [];
   for (const block of text.split(/\r?\n\r?\n/)) {
@@ -23,13 +29,27 @@ export function iterateSseData(text: string): string[] {
         continue;
       }
       const data = line.slice(5).trim();
-      if (!data || data === "[DONE]") {
+      if (!data) {
         continue;
+      }
+      if (data === "[DONE]") {
+        return out;
       }
       out.push(data);
     }
   }
   return out;
+}
+
+function hasSseDone(text: string): boolean {
+  for (const block of text.split(/\r?\n\r?\n/)) {
+    for (const line of block.split(/\r?\n/)) {
+      if (line.startsWith("data:") && line.slice(5).trim() === "[DONE]") {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 export function applyChatChunk(
@@ -106,9 +126,7 @@ export async function readSseChatCompletion(
   signal?: AbortSignal,
 ): Promise<AssembledCompletion> {
   if (signal?.aborted) {
-    const error = new Error("This operation was aborted");
-    error.name = "AbortError";
-    throw error;
+    throw abortError();
   }
   const acc = emptyAssembly();
   let mode: "prose" | "tool" | "unknown" = "unknown";
@@ -119,14 +137,13 @@ export async function readSseChatCompletion(
       mode = promote(acc, mode, delta, onProseDelta);
     });
     if (signal?.aborted) {
-      const error = new Error("This operation was aborted");
-      error.name = "AbortError";
-      throw error;
+      throw abortError();
     }
     return acc;
   }
   const decoder = new TextDecoder();
   let buffer = "";
+  let sawDone = false;
   const onAbort = () => {
     void reader.cancel();
   };
@@ -134,11 +151,21 @@ export async function readSseChatCompletion(
   try {
     while (true) {
       if (signal?.aborted) {
-        const error = new Error("This operation was aborted");
-        error.name = "AbortError";
-        throw error;
+        throw abortError();
       }
-      const { done, value } = await reader.read();
+      let done = false;
+      let value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await reader.read());
+      } catch (err) {
+        if (signal?.aborted) {
+          throw abortError();
+        }
+        throw err;
+      }
+      if (signal?.aborted) {
+        throw abortError();
+      }
       if (done) {
         break;
       }
@@ -146,18 +173,32 @@ export async function readSseChatCompletion(
       const parts = buffer.split(/\r?\n\r?\n/);
       buffer = parts.pop() ?? "";
       for (const part of parts) {
-        applySseText(acc, `${part}\n\n`, (delta) => {
+        const chunk = `${part}\n\n`;
+        applySseText(acc, chunk, (delta) => {
           mode = promote(acc, mode, delta, onProseDelta);
         });
+        if (hasSseDone(chunk)) {
+          sawDone = true;
+          break;
+        }
+      }
+      if (sawDone) {
+        break;
       }
     }
-    if (buffer.trim()) {
+    if (signal?.aborted) {
+      throw abortError();
+    }
+    if (!sawDone && buffer.trim()) {
       applySseText(acc, buffer, (delta) => {
         mode = promote(acc, mode, delta, onProseDelta);
       });
     }
   } finally {
     signal?.removeEventListener("abort", onAbort);
+  }
+  if (signal?.aborted) {
+    throw abortError();
   }
   return acc;
 }
