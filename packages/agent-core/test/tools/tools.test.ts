@@ -25,6 +25,7 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
     listDir: async () => [],
     search: async () => [],
     findFiles: async () => [],
+    exists: async () => "absent" as const,
     getContext: async () => ({ activeFile: null, selection: null }),
     ...overrides,
   };

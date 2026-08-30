@@ -21,5 +21,7 @@ export interface WorkspacePort {
   search(query: string, glob?: string): Promise<SearchHit[]>;
   /** Workspace-relative POSIX paths whose basename or glob matches. */
   findFiles(nameOrGlob: string): Promise<string[]>;
+  /** Workspace-relative POSIX path. Trailing slashes ignored. */
+  exists(path: string): Promise<"file" | "dir" | "absent">;
   getContext(): Promise<EditorContext>;
 }

@@ -59,6 +59,21 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       return uris.map((uri) => toWorkspaceRelative(root, uri.fsPath));
     },
 
+    async exists(input: string) {
+      const root = workspaceRoot();
+      if (!root) {
+        throw new Error("No workspace folder open");
+      }
+      const rel = input.replace(/\/+$/, "");
+      const abs = resolveWorkspacePath(root, rel);
+      try {
+        const stat = await vscode.workspace.fs.stat(vscode.Uri.file(abs));
+        return stat.type === vscode.FileType.Directory ? "dir" : "file";
+      } catch {
+        return "absent";
+      }
+    },
+
     async getContext() {
       const root = workspaceRoot();
       const editor = vscode.window.activeTextEditor;
