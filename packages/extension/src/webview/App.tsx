@@ -150,7 +150,7 @@ export function App() {
             </article>
           ))
         )}
-        {busy ? (
+        {busy && messages[messages.length - 1]?.role !== "assistant" ? (
           <article className="bubble assistant waiting" aria-live="polite" aria-busy="true">
             <span className="role">Agent</span>
             <p className="waiting-line">
@@ -193,9 +193,19 @@ export function App() {
           rows={3}
           disabled={busy}
         />
-        <button type="submit" disabled={busy || input.trim().length === 0}>
-          {busy ? "…" : "Send"}
-        </button>
+        {busy ? (
+          <button
+            type="button"
+            className="waiting-stop"
+            onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}
+          >
+            Stop
+          </button>
+        ) : (
+          <button type="submit" disabled={input.trim().length === 0}>
+            Send
+          </button>
+        )}
       </form>
     </div>
   );

@@ -7,6 +7,25 @@ describe("applyExtMessage", () => {
     expect(next).toEqual([{ role: "assistant", text: "hi" }]);
   });
 
+  it("appends consecutive assistant deltas onto one line", () => {
+    const first = applyExtMessage([], { type: "assistant_delta", text: "Hel" });
+    const next = applyExtMessage(first, { type: "assistant_delta", text: "lo" });
+    expect(next).toEqual([{ role: "assistant", text: "Hello" }]);
+  });
+
+  it("starts a new assistant line after a tool line", () => {
+    const withTool = applyExtMessage([], {
+      type: "tool_call",
+      name: "read_file",
+      args: { path: "a.ts" },
+      id: "c1",
+      status: "running",
+    });
+    const next = applyExtMessage(withTool, { type: "assistant_delta", text: "done" });
+    expect(next).toHaveLength(2);
+    expect(next[1]).toEqual({ role: "assistant", text: "done" });
+  });
+
   it("appends a tool line without throwing", () => {
     const next = applyExtMessage([], {
       type: "tool_call",

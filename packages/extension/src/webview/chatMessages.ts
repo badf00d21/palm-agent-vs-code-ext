@@ -48,6 +48,10 @@ export function shouldClearBusy(msg: ExtToWebview): boolean {
 
 export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLine[] {
   if (msg.type === "assistant_delta") {
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant") {
+      return [...messages.slice(0, -1), { role: "assistant", text: last.text + msg.text }];
+    }
     return [...messages, { role: "assistant", text: msg.text }];
   }
   if (msg.type === "tool_call") {
