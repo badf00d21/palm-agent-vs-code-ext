@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertCanStartTurn } from "../../src/session/session-guards.js";
 
-const ok = { busy: false, hasWorkspace: true, model: "deepseek-v4-pro" };
+const ok = { busy: false, hasWorkspace: true, model: "gemma4:12b" };
 
 describe("assertCanStartTurn", () => {
   it("rejects empty text", () => {
@@ -29,7 +29,7 @@ describe("assertCanStartTurn", () => {
     expect(assertCanStartTurn("hi", { ...ok, model: "gpt-4" })).toEqual({
       type: "error",
       message:
-        "Model name routes to the wrong API. Use a local Ollama name such as deepseek-v4-pro.",
+        "Model name routes to the wrong API. Use a local Ollama name such as gemma4:12b.",
     });
   });
 

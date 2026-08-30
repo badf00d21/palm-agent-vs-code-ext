@@ -57,8 +57,8 @@
         },
         "palmAgent.model": {
           "type": "string",
-          "default": "deepseek-v4-pro",
-          "description": "Ollama model name. Default deepseek-v4-pro is a local alias for qwen coder (Mozaik only accepts a closed name set). Do not use gpt-* names."
+          "default": "gemma4:12b",
+          "description": "Ollama model name. Default gemma4:12b. Do not use gpt-* / o1–o9 / text-* names."
         }
       }
     }

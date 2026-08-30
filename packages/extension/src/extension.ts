@@ -9,7 +9,7 @@ export function activate(context: vscode.ExtensionContext): void {
   console.log("[palm-agent] activated");
 
   try {
-    const host = createSessionHost();
+    const host = createSessionHost(log);
     const provider = new ChatViewProvider(context.extensionUri, host);
     const proposedChange = new vscode.EventEmitter<vscode.Uri>();
     const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);

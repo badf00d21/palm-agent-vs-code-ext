@@ -1,14 +1,13 @@
-import { spawn } from "node:child_process";
 import { rgPath } from "@vscode/ripgrep";
 import {
   resolveWorkspacePath,
   toWorkspaceRelative,
   type DirEntry,
   type EditorContext,
-  type SearchHit,
   type WorkspacePort,
 } from "@palm-agent/agent-core";
 import * as vscode from "vscode";
+import { searchWorkspace } from "./rg";
 
 function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -46,12 +45,7 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       if (!root) {
         throw new Error("No workspace folder open");
       }
-      const args = ["--json", "--max-count", "50", "--", query];
-      if (glob) {
-        args.splice(0, 0, "--glob", glob);
-      }
-      const hits = await runRg(rgPath, args, root);
-      return hits;
+      return searchWorkspace(rgPath, query, root, glob);
     },
 
     async findFiles(nameOrGlob: string) {
@@ -78,48 +72,4 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       return { activeFile, selection };
     },
   };
-}
-
-function runRg(bin: string, args: string[], cwd: string): Promise<SearchHit[]> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
-    });
-    child.on("error", reject);
-    child.on("close", () => {
-      if (stderr && !stdout) {
-        reject(new Error(stderr.trim()));
-        return;
-      }
-      const hits: SearchHit[] = [];
-      for (const line of stdout.split("\n")) {
-        if (!line) {
-          continue;
-        }
-        try {
-          const row = JSON.parse(line) as {
-            type?: string;
-            data?: { path?: { text?: string }; line_number?: number; lines?: { text?: string } };
-          };
-          if (row.type !== "match" || !row.data?.path?.text) {
-            continue;
-          }
-          hits.push({
-            path: toWorkspaceRelative(cwd, row.data.path.text),
-            line: row.data.line_number ?? 1,
-            text: (row.data.lines?.text ?? "").replace(/\n$/, ""),
-          });
-        } catch {
-          // skip malformed rg json lines
-        }
-      }
-      resolve(hits);
-    });
-  });
 }

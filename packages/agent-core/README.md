@@ -27,14 +27,16 @@ Pravilo iz `AGENTS.md`: fakt o agentu/loop-u ostaje ovde; fakt o editoru ide u `
 2. `createAgentSession(port, config, sink, reviewHost)` diže `AgenticEnvironment`, `EditorAgent` i `UIBridge`.
 3. `startTurn` šalje user tekst na bus. Agent zove tool-ove; `propose_edit` samo predlaže (ne piše disk).
 4. Lokalni model ide na Chat Completions (`OPENAI_BASE_URL`, default Ollama). Ime modela ne sme biti `gpt-*` / `o1`–`o9` / `text-*` — Mozaik bi to rutirao na Responses API.
+5. Tool output ide modelu **sirov** — Mozaikov `executeFunctionCall` je namerno zaobiđen jer JSON.stringify-uje svaki output (model bi čitao kod kao escaped jedan red). Greške tool-ova (nepoznat tool, loš JSON u argumentima, throw iz invoke) vraćaju se modelu kao output tog poziva da se sam ispravi — ne obaraju turn.
+6. Prozu koju model napiše uz native tool call UIBridge prosleđuje webview-u kao `assistant_delta` (SemanticEvent `assistant_narration`); u kontekst ne ulazi.
 
-Default model: `deepseek-v4-pro` (Ollama alias za lokalni qwen coder, da ime bude Mozaik-legalno).
+Default model: `gemma4:12b` (Ollama Chat Completions; pouzdan tool-format). Ollama context podesi po [docs/ollama-setup.md](../../docs/ollama-setup.md) — bez toga Ollama tiho seče prompt na 4096 tokena.
 
 ## Tool-ovi
 
 | Tool | Uloga |
 |---|---|
-| `read_file` | UTF-8, cap 100k |
+| `read_file` | UTF-8, cap 24k karaktera; preko toga `[truncated: continue with read_file start_line=N]` |
 | `list_dir` | jedan nivo |
 | `search` | sadržaj, cap 50 |
 | `get_context` | aktivni fajl + selekcija |
@@ -42,7 +44,7 @@ Default model: `deepseek-v4-pro` (Ollama alias za lokalni qwen coder, da ime bud
 
 `search` u `propose_edit` je tačan substring iz `read_file`, ne regex i ne `{[^}]*}` wildcard.
 
-`read_file` / `propose_edit` prihvataju i samo ime fajla (`abc-import.ts`) ako je jedinstveno u workspace-u. Ako SEARCH promaši, a u fajlu postoji jedna funkcija tog imena, tool vrati njen tačan tekst da model kopira — ne primenjuje izmenu sam.
+`read_file` / `propose_edit` prihvataju i samo ime fajla (`abc-import.ts`) ako je jedinstveno. `read_file` može `start_line` / `end_line` (1-based); telo je sirovi slice, header `[lines: a-b of N]` se ne kopira u SEARCH. Ako SEARCH promaši, a u fajlu postoji jedna funkcija tog imena, tool vrati njen tačan tekst — ne primenjuje izmenu sam. Matcher izjednačava `\n` / `\r\n` / `\r`.
 
 ## Testovi
 

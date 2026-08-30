@@ -118,8 +118,8 @@ describe("createAgentSession inference failures", () => {
   });
 
   it("cancel settles a hanging turn", async () => {
-    globalThis.fetch = (async (_url, init) => {
-      await new Promise<never>((_resolve, reject) => {
+    globalThis.fetch = ((_url: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
         const abort = () => {
           const error = new Error("aborted");
           error.name = "AbortError";
@@ -130,8 +130,7 @@ describe("createAgentSession inference failures", () => {
           return;
         }
         init?.signal?.addEventListener("abort", abort, { once: true });
-      });
-    }) as typeof fetch;
+      })) as typeof fetch;
 
     const events: ExtToWebview[] = [];
     const session = createAgentSession(

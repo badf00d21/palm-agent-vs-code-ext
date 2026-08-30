@@ -16,6 +16,20 @@ function countExact(content: string, search: string): number {
   return count;
 }
 
+function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function lineSep(content: string): string {
+  if (content.includes("\r\n")) {
+    return "\r\n";
+  }
+  if (content.includes("\r")) {
+    return "\r";
+  }
+  return "\n";
+}
+
 function lineWindows(
   contentLines: string[],
   searchLines: string[],
@@ -40,7 +54,7 @@ function lineStartOffsets(content: string): number[] {
     if (content[i] === "\r" && content[i + 1] === "\n") {
       i += 2;
       starts.push(i);
-    } else if (content[i] === "\n") {
+    } else if (content[i] === "\n" || content[i] === "\r") {
       i += 1;
       starts.push(i);
     } else {
@@ -67,7 +81,7 @@ function applyWindow(content: string, start: number, searchLen: number, replace:
   const prefix = content.slice(0, from);
   const suffix = content.slice(to);
   const window = content.slice(from, to);
-  const originalSep = content.includes("\r\n") ? "\r\n" : "\n";
+  const originalSep = lineSep(content);
   const replaceLines = replace.replace(/\r\n/g, "\n").split("\n");
   let replaceText = replaceLines.join(originalSep);
   const windowEnd = trailingBreak(window);
@@ -91,8 +105,8 @@ export function applySearchReplace(
     return { ok: false, reason: "ambiguous" };
   }
 
-  const contentLines = content.replace(/\r\n/g, "\n").split("\n");
-  let searchLines = search.replace(/\r\n/g, "\n").split("\n");
+  const contentLines = normalizeNewlines(content).split("\n");
+  let searchLines = normalizeNewlines(search).split("\n");
   if (searchLines.length > 1 && searchLines[searchLines.length - 1] === "") {
     searchLines = searchLines.slice(0, -1);
   }

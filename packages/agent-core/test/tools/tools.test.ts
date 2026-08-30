@@ -31,14 +31,31 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
 }
 
 describe("read_file", () => {
-  it("truncates after 100000 characters", async () => {
-    const invoke = getInvoke(
-      "read_file",
-      fakePort({ readFile: async () => "x".repeat(100_001) }),
-    );
+  it("truncates after 24000 characters and points at the next start_line", async () => {
+    // 400 lines of 100 chars each ("x" * 99 + \n): the cap cuts exactly after line 240.
+    const line = "x".repeat(99);
+    const content = Array.from({ length: 400 }, () => line).join("\n") + "\n";
+    const invoke = getInvoke("read_file", fakePort({ readFile: async () => content }));
     const out = await invoke({ path: "a.ts" });
-    expect(out.endsWith("\n[truncated]")).toBe(true);
-    expect(out.startsWith("x".repeat(100_000))).toBe(true);
+    expect(out.startsWith(content.slice(0, 24_000))).toBe(true);
+    expect(out.endsWith("\n[truncated: continue with read_file start_line=241]")).toBe(true);
+  });
+
+  it("truncates mid-line and repeats the cut line in the continue hint", async () => {
+    const content = "x".repeat(24_010);
+    const invoke = getInvoke("read_file", fakePort({ readFile: async () => content }));
+    const out = await invoke({ path: "a.ts" });
+    expect(out.endsWith("\n[truncated: continue with read_file start_line=1]")).toBe(true);
+  });
+
+  it("anchors the continue hint to file lines when a range was requested", async () => {
+    // Lines are 1000 chars, range starts at line 5; cap cuts after 24 whole lines → resume at 29.
+    const line = "y".repeat(999);
+    const content = Array.from({ length: 60 }, () => line).join("\n") + "\n";
+    const invoke = getInvoke("read_file", fakePort({ readFile: async () => content }));
+    const out = await invoke({ path: "a.ts", start_line: 5, end_line: 60 });
+    expect(out.startsWith("[lines: 5-60 of 60]\n")).toBe(true);
+    expect(out.endsWith("\n[truncated: continue with read_file start_line=29]")).toBe(true);
   });
 
   it("resolves a unique filename via findFiles", async () => {
@@ -56,6 +73,26 @@ describe("read_file", () => {
     );
     expect(await invoke({ path: "abc-import.ts" })).toBe(
       "[path: src/abc-import.ts]\nexport const x = 1;\n",
+    );
+  });
+
+  it("returns a raw line range without line-number prefixes", async () => {
+    const invoke = getInvoke(
+      "read_file",
+      fakePort({ readFile: async () => "one\ntwo\nthree\nfour\n" }),
+    );
+    expect(await invoke({ path: "a.ts", start_line: 2, end_line: 3 })).toBe(
+      "[lines: 2-3 of 4]\ntwo\nthree\n",
+    );
+  });
+
+  it("rejects a start_line past the end of the file", async () => {
+    const invoke = getInvoke(
+      "read_file",
+      fakePort({ readFile: async () => "only\n" }),
+    );
+    expect(await invoke({ path: "a.ts", start_line: 3, end_line: 4 })).toBe(
+      "Error: start_line 3 is past end of file (1 lines)",
     );
   });
 });
@@ -90,7 +127,7 @@ describe("search", () => {
     const invoke = getInvoke("search", fakePort({ search: async () => hits }));
     const out = await invoke({ query: "x" });
     expect(out).toContain("[truncated to 50 hits]");
-    expect(out.split("\n").filter((l) => l.startsWith("f.ts:")).length).toBe(50);
+    expect(out.split("\n").filter((l: string) => l.startsWith("f.ts:")).length).toBe(50);
   });
 });
 

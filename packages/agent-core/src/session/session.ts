@@ -16,6 +16,9 @@ import { assertCanStartTurn } from "./session-guards.js";
 
 export type SessionEventSink = (event: ExtToWebview) => void;
 
+/** Diagnostic line sink (VS Code OutputChannel in the extension). Never receives file contents. */
+export type SessionTrace = (line: string) => void;
+
 export interface AgentSession {
   readonly busy: boolean;
   startTurn(text: string): Promise<void>;
@@ -23,10 +26,17 @@ export interface AgentSession {
   setSink(sink: SessionEventSink): void;
 }
 
-const TURN_TIMEOUT_MS = 120_000;
+/** Idle between tool steps. Must not run while Ollama is generating. */
+const IDLE_TIMEOUT_MS = 120_000;
+/** Cold 14B load + one completion. */
+const INFERENCE_TIMEOUT_MS = 600_000;
 
-function turnTimedOut(): string {
-  return `Turn timed out after ${TURN_TIMEOUT_MS / 1000}s without progress. Send again or press Stop.`;
+function idleTimedOut(): string {
+  return `Turn timed out after ${IDLE_TIMEOUT_MS / 1000}s without progress. Send again or press Stop.`;
+}
+
+function inferenceTimedOut(): string {
+  return `Ollama did not finish in ${INFERENCE_TIMEOUT_MS / 1000}s. If the model is loading into VRAM, wait and retry, or press Stop.`;
 }
 
 export function createAgentSession(
@@ -34,6 +44,7 @@ export function createAgentSession(
   config: ModelConfig,
   initialSink: SessionEventSink = () => undefined,
   reviewHost: ReviewHost,
+  trace: SessionTrace = () => undefined,
 ): AgentSession {
   let sink = initialSink;
   let busy = false;
@@ -49,18 +60,34 @@ export function createAgentSession(
     }
   };
 
-  const bumpIdleTimer = (fromGeneration: number): void => {
+  const armTimer = (fromGeneration: number, ms: number, message: string): void => {
     clearIdleTimer();
     idleTimer = setTimeout(() => {
       turnAbort?.abort();
-      finish(fromGeneration, { type: "error", message: turnTimedOut() });
-    }, TURN_TIMEOUT_MS);
+      finish(fromGeneration, { type: "error", message });
+    }, ms);
+  };
+
+  const bumpIdleTimer = (fromGeneration: number): void => {
+    armTimer(fromGeneration, IDLE_TIMEOUT_MS, idleTimedOut());
+  };
+
+  const bumpInferenceTimer = (fromGeneration: number): void => {
+    armTimer(fromGeneration, INFERENCE_TIMEOUT_MS, inferenceTimedOut());
   };
 
   const finish = (fromGeneration: number, event: ExtToWebview): void => {
     if (fromGeneration !== generation || !busy) {
+      trace(
+        `turn ${fromGeneration}: finish ${event.type} ignored (current=${generation} busy=${busy})`,
+      );
       return;
     }
+    trace(
+      `turn ${fromGeneration}: finish ${event.type}${
+        event.type === "error" ? ` "${event.message.slice(0, 160)}"` : ""
+      }`,
+    );
     clearIdleTimer();
     turnAbort?.abort();
     busy = false;
@@ -90,6 +117,8 @@ export function createAgentSession(
     (fromGeneration) => finish(fromGeneration, { type: "done" }),
     (message, fromGeneration) => finish(fromGeneration, { type: "error", message }),
     (fromGeneration) => bumpIdleTimer(fromGeneration),
+    (fromGeneration) => bumpInferenceTimer(fromGeneration),
+    trace,
   );
   const ui = new UIBridge(() => sink);
 
@@ -124,12 +153,13 @@ export function createAgentSession(
       process.env.OPENAI_API_KEY = config.apiKey;
       generation += 1;
       const myGeneration = generation;
+      trace(`turn ${myGeneration}: start model=${config.model} base=${config.baseUrl}`);
       turnAbort?.abort();
       turnAbort = new AbortController();
       agent.beginTurn(myGeneration, turnAbort.signal);
       agent.markActive(environment);
       busy = true;
-      bumpIdleTimer(myGeneration);
+      bumpInferenceTimer(myGeneration);
       await new Promise<void>((resolve) => {
         settle = () => {
           resolve();

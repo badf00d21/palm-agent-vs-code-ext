@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { isForbiddenModelName } from "../../src/model/config.js";
 
 describe("isForbiddenModelName", () => {
-  it("allows deepseek-v4-pro (qwen coder alias)", () => {
-    expect(isForbiddenModelName("deepseek-v4-pro")).toBe(false);
+  it("allows gemma4:12b", () => {
+    expect(isForbiddenModelName("gemma4:12b")).toBe(false);
   });
 
   it("rejects gpt-4", () => {

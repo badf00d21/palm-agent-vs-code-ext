@@ -14,7 +14,6 @@ export function readModelConfig(): ModelConfig {
   const cfg = vscode.workspace.getConfiguration("palmAgent");
   return {
     baseUrl: cfg.get("ollamaBaseUrl", DEFAULT_BASE_URL),
-    // deepseek-v4-pro = Ollama alias for local qwen coder (Mozaik ModelName limit)
     model: cfg.get("model", DEFAULT_MODEL),
     apiKey: "not-needed",
   };
@@ -53,16 +52,24 @@ async function readOpenText(
   return { text: doc.getText(), dirty: doc.isDirty };
 }
 
-export function createSessionHost(): { session: AgentSession; store: ReviewStore } {
+export function createSessionHost(log?: {
+  appendLine(line: string): void;
+}): { session: AgentSession; store: ReviewStore } {
   const port = createVsCodeWorkspacePort();
-  let emit: (event: ExtToWebview) => void = () => undefined;
+  const trace = (line: string): void => log?.appendLine(`[agent] ${line}`);
+  let rawSink: (event: ExtToWebview) => void = () => undefined;
+  // Every outgoing event passes through here so the trace shows what the webview got.
+  const emit = (event: ExtToWebview): void => {
+    trace(`event ${event.type}${event.type === "error" ? `: ${event.message.slice(0, 160)}` : ""}`);
+    rawSink(event);
+  };
   const store = createReviewStore({
-    emit: (event) => emit(event),
+    emit,
     readFile: (path) => port.readFile(path),
     applyFiles,
     readOpenText,
   });
-  const session = createAgentSession(port, readModelConfig(), (event) => emit(event), store);
+  const session = createAgentSession(port, readModelConfig(), emit, store, trace);
   return {
     session: {
       get busy() {
@@ -71,8 +78,7 @@ export function createSessionHost(): { session: AgentSession; store: ReviewStore
       startTurn: (text) => session.startTurn(text),
       cancel: () => session.cancel(),
       setSink(sink) {
-        emit = sink;
-        session.setSink(sink);
+        rawSink = sink;
       },
     },
     store,

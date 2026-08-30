@@ -3,17 +3,21 @@ import { locateWorkspaceFile } from "../workspace/locate.js";
 import { toPosix } from "../workspace/paths.js";
 import type { WorkspacePort } from "../workspace/port.js";
 import { exactFunctionInFile, functionNameFromSearch } from "./named-function.js";
+import { lineCount, sliceByLines } from "./read-range.js";
 import type { ProposedFile, ReviewHost } from "./review.js";
 import { applySearchReplace } from "./search-replace.js";
 
-const READ_LIMIT = 100_000;
+/** Local models run with a 16–32k num_ctx budget; one read must not eat it. */
+const READ_LIMIT = 24_000;
 const SEARCH_LIMIT = 50;
 
 export const SYSTEM_PROMPT =
   "You are a coding assistant in a local workspace. Use tools to find and read code before answering. Do not invent file contents or paths. " +
-  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. " +
+  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. After search, read_file with start_line/end_line around the hit, then copy search from that slice (not from the [lines:] header). " +
   "When the user asks to change, refactor, apply, or edit code you MUST call propose_edit. Do not paste the new function as the final answer. Never say you cannot apply edits. " +
   "propose_edit.search is a literal substring copied from the read_file output. Do not use wildcards like {[^}]*}. If propose_edit returns exact function text, use that as search and call propose_edit again. " +
+  "If a tool result starts with Error:, fix the arguments and call the tool again instead of apologizing or giving up. " +
+  "When the user confirms a suggestion (for example: ok, do it, yes, uradi), immediately make the change with tools — do not restate the plan and do not paste code in chat. " +
   "Never write to disk yourself. Never print a propose_edit JSON template or placeholders like <file-path>. After a successful propose_edit, reply in one short sentence. " +
   "Do not roleplay, do not use personal names, and do not reply with a single unrelated word.";
 
@@ -27,12 +31,16 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
     {
       name: "read_file",
       description:
-        "Read a UTF-8 text file. Path may be workspace-relative or a unique filename (abc-import.ts).",
+        "Read a UTF-8 text file. Path may be workspace-relative or a unique filename. Optional start_line/end_line (1-based, inclusive) return a raw slice — copy propose_edit.search from that slice, not the header.",
       strict: true,
       type: "function",
       parameters: {
         type: "object",
-        properties: { path: { type: "string", description: "Workspace-relative path" } },
+        properties: {
+          path: { type: "string", description: "Workspace-relative path or unique filename" },
+          start_line: { type: "integer", description: "1-based inclusive start line" },
+          end_line: { type: "integer", description: "1-based inclusive end line" },
+        },
         required: ["path"],
       },
       invoke: async (args) => {
@@ -40,13 +48,33 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
         if ("error" in located) {
           return `Error: ${located.error}`;
         }
-        const prefix = located.path !== toPosix(String(args.path ?? "")).replace(/^\.\//, "")
-          ? `[path: ${located.path}]\n`
-          : "";
-        if (located.text.length > READ_LIMIT) {
-          return `${prefix}${located.text.slice(0, READ_LIMIT)}\n[truncated]`;
+        const hasStart = args.start_line !== undefined && args.start_line !== null && args.start_line !== "";
+        const hasEnd = args.end_line !== undefined && args.end_line !== null && args.end_line !== "";
+        let body = located.text;
+        let bodyStartLine = 1;
+        const headers: string[] = [];
+        if (located.path !== toPosix(String(args.path ?? "")).replace(/^\.\//, "")) {
+          headers.push(`[path: ${located.path}]`);
         }
-        return `${prefix}${located.text}`;
+        if (hasStart || hasEnd) {
+          const start = hasStart ? Number(args.start_line) : 1;
+          const end = hasEnd ? Number(args.end_line) : lineCount(located.text);
+          const sliced = sliceByLines(located.text, start, end);
+          if ("error" in sliced) {
+            return `Error: ${sliced.error}`;
+          }
+          body = sliced.text;
+          bodyStartLine = sliced.start;
+          headers.push(`[lines: ${sliced.start}-${sliced.end} of ${sliced.total}]`);
+        }
+        const prefix = headers.length > 0 ? `${headers.join("\n")}\n` : "";
+        if (body.length > READ_LIMIT) {
+          const shown = body.slice(0, READ_LIMIT);
+          const endsOnLineBreak = /(?:\r\n|\n|\r)$/.test(shown);
+          const nextLine = bodyStartLine + lineCount(shown) - (endsOnLineBreak ? 0 : 1);
+          return `${prefix}${shown}\n[truncated: continue with read_file start_line=${nextLine}]`;
+        }
+        return `${prefix}${body}`;
       },
     },
     {

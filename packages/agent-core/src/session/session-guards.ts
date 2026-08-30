@@ -17,7 +17,7 @@ export function assertCanStartTurn(
     return {
       type: "error",
       message:
-        "Model name routes to the wrong API. Use a local Ollama name such as deepseek-v4-pro.",
+        "Model name routes to the wrong API. Use a local Ollama name such as gemma4:12b.",
     };
   }
   return null;

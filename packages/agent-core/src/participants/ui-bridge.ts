@@ -2,15 +2,29 @@ import {
   BaseParticipant,
   FunctionCallItem,
   ModelMessageItem,
+  SemanticEvent,
   type Participant,
 } from "@mozaik-ai/core";
 import type { ExtToWebview } from "@palm-agent/shared";
+import { NARRATION_EVENT } from "../model/local-inference.js";
 
 export function eventsFromFunctionCall(name: string, args: unknown): ExtToWebview {
   return { type: "tool_call", name, args };
 }
 
 export function eventFromModelText(text: string): ExtToWebview | null {
+  if (!text) {
+    return null;
+  }
+  return { type: "assistant_delta", text };
+}
+
+export function eventFromNarration(item: SemanticEvent<unknown>): ExtToWebview | null {
+  if (item.getType() !== NARRATION_EVENT) {
+    return null;
+  }
+  const data = item.data as { text?: unknown } | null | undefined;
+  const text = typeof data?.text === "string" ? data.text : "";
   if (!text) {
     return null;
   }
@@ -42,6 +56,13 @@ export class UIBridge extends BaseParticipant {
   override onExternalModelMessage(_source: Participant, item: ModelMessageItem): void {
     const text = item.content?.text ?? "";
     const event = eventFromModelText(text);
+    if (event) {
+      this.sink()(event);
+    }
+  }
+
+  override onExternalEvent(_source: Participant, item: SemanticEvent<unknown>): void {
+    const event = eventFromNarration(item);
     if (event) {
       this.sink()(event);
     }

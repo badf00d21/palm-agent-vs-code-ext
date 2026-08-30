@@ -5,12 +5,9 @@ export interface ModelConfig {
 }
 
 /**
- * Ollama alias for the local qwen coder weights (`qwen2.5-coder:14b`).
- * Mozaik 3.x only accepts a closed ModelName set (`gpt-*`, `claude-*`,
- * `gemini-*`, `deepseek-v4-*`). A real qwen name throws `Unsupported model`
- * if anything still goes through `runInference`. `deepseek-v4-pro` is an
- * `ollama cp` / alias so the served weights stay qwen coder while the name
- * is Mozaik-legal.
+ * Local Ollama Chat Completions model. Default is `gemma4:12b` (reliable
+ * tool-format). Do not use `gpt-*` / `o1`–`o9` / `text-*` names — those
+ * route to the Responses API. The local runner POSTs this name as-is.
  */
 export const DEFAULT_MODEL = "deepseek-v4-pro";
 

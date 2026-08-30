@@ -34,6 +34,17 @@ describe("applySearchReplace", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
+  it("matches a unique window when the file uses CR-only breaks", () => {
+    const content = "KEEP\rone\rtwo\rAFTER\r";
+    const result = applySearchReplace(content, "one\ntwo\n", "ONE\nTWO\n");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.text).toContain("ONE");
+      expect(result.text).toContain("KEEP");
+      expect(result.text).toContain("AFTER");
+    }
+  });
+
   it("splices a CRLF trim window without doubling CR", () => {
     const prefix = "KEEP_PREFIX // unchanged\r\n";
     const suffix = "KEEP_SUFFIX // unchanged\r\n";

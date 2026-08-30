@@ -133,8 +133,8 @@ ANTHROPIC_API_KEY=
 # Lokalno preko Ollama (Chat Completions!)
 OPENAI_API_KEY=not-needed
 OPENAI_BASE_URL=http://localhost:11434/v1
-# Preporuka za start: qwen2.5-coder:14b (u VRAM) ; gemma4:12b za pouzdan tool-format
-LOCAL_MODEL=qwen2.5-coder:14b
+# Preporuka za start: gemma4:12b (pouzdan tool-format); qwen2.5-coder:14b kao fallback
+LOCAL_MODEL=gemma4:12b
 ```
 
 Za produkciju ključeve drži u VS Code **SecretStorage**, ne u kodu.

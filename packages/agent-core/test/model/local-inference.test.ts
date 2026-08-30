@@ -4,10 +4,16 @@ import {
   FunctionCallItem,
   ModelContext,
   ModelMessageItem,
+  SemanticEvent,
   UserMessageItem,
 } from "@mozaik-ai/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseToolCallsFromContent, runLocalChatCompletions } from "../../src/model/local-inference.js";
+import {
+  NARRATION_EVENT,
+  parseToolCallsFromContent,
+  runLocalChatCompletions,
+  type NarrationPayload,
+} from "../../src/model/local-inference.js";
 
 const BASE_URL = "http://localhost:11434/v1";
 
@@ -145,8 +151,9 @@ describe("runLocalChatCompletions", () => {
       },
       fetchImpl: async (url, init) => {
         expect(String(url)).toBe(`${BASE_URL}/chat/completions`);
-        const body = JSON.parse(String(init?.body)) as { model: string };
+        const body = JSON.parse(String(init?.body)) as { model: string; max_tokens: number };
         expect(body.model).toBe("deepseek-v4-pro");
+        expect(body.max_tokens).toBe(4096);
         return jsonResponse({
           choices: [{ message: { role: "assistant", content: "hello from qwen" } }],
         });
@@ -213,9 +220,9 @@ describe("runLocalChatCompletions", () => {
         failed = message;
       },
       signal: controller.signal,
-      fetchImpl: async (_url, init) => {
-        seenSignal = init?.signal;
-        await new Promise<never>((_resolve, reject) => {
+      fetchImpl: (_url, init) => {
+        seenSignal = init?.signal ?? undefined;
+        return new Promise<Response>((_resolve, reject) => {
           const abort = () => {
             const error = new Error("This operation was aborted");
             error.name = "AbortError";
@@ -310,5 +317,206 @@ describe("runLocalChatCompletions", () => {
 
     expect(delivered).toBe(false);
     expect(failed).toBe("");
+  });
+
+  it("fails the turn when the model hits the token limit with no content", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    let delivered = false;
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverModelMessage: () => {
+          delivered = true;
+        },
+        deliverFunctionCall: () => {
+          delivered = true;
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        jsonResponse({
+          choices: [
+            { finish_reason: "length", message: { role: "assistant", content: "" } },
+          ],
+        }),
+    });
+
+    expect(delivered).toBe(false);
+    expect(failed).toMatch(/output token limit/);
+  });
+
+  it("still delivers an empty answer that finished normally", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const delivered: ModelMessageItem[] = [];
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: {
+        deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
+          delivered.push(item);
+        },
+        deliverFunctionCall: () => {
+          throw new Error("unexpected function call");
+        },
+      } as unknown as AgenticEnvironment,
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        jsonResponse({
+          choices: [{ finish_reason: "stop", message: { role: "assistant", content: "" } }],
+        }),
+    });
+
+    expect(failed).toBe("");
+    expect(delivered).toHaveLength(1);
+  });
+
+  it("delivers narration as a semantic event when content accompanies native tool calls", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const narrations: Array<SemanticEvent<unknown>> = [];
+    const calls: FunctionCallItem[] = [];
+    const environment = {
+      deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
+        narrations.push(item);
+      },
+      deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+        calls.push(item);
+      },
+      deliverModelMessage: () => {
+        throw new Error("should not deliver text");
+      },
+    } as unknown as AgenticEnvironment;
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        jsonResponse({
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: "Reading the file first.",
+                tool_calls: [
+                  {
+                    id: "call_1",
+                    type: "function",
+                    function: { name: "read_file", arguments: '{"path":"a.ts"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+    });
+
+    expect(narrations).toHaveLength(1);
+    expect(narrations[0]?.getType()).toBe(NARRATION_EVENT);
+    expect((narrations[0]?.data as NarrationPayload).text).toBe("Reading the file first.");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.callId).toBe("call_1");
+  });
+
+  it("does not narrate when the tool call was parsed from content", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const narrations: unknown[] = [];
+    const calls: FunctionCallItem[] = [];
+    const environment = {
+      deliverSemanticEvent: (_caller: unknown, item: unknown) => {
+        narrations.push(item);
+      },
+      deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+        calls.push(item);
+      },
+      deliverModelMessage: () => {
+        throw new Error("should not deliver text");
+      },
+    } as unknown as AgenticEnvironment;
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        jsonResponse({
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: '{"name": "search", "arguments": {"query": "def"}}',
+              },
+            },
+          ],
+        }),
+    });
+
+    expect(narrations).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("assigns unique synthetic call ids across completions", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const calls: FunctionCallItem[] = [];
+    const environment = {
+      deliverSemanticEvent: () => undefined,
+      deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+        calls.push(item);
+      },
+      deliverModelMessage: () => {
+        throw new Error("should not deliver text");
+      },
+    } as unknown as AgenticEnvironment;
+
+    const params = {
+      model: "deepseek-v4-pro" as const,
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        jsonResponse({
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: '{"name": "search", "arguments": {"query": "def"}}',
+              },
+            },
+          ],
+        }),
+    };
+
+    await runLocalChatCompletions({ ...params, context: ModelContext.create("one") });
+    await runLocalChatCompletions({ ...params, context: ModelContext.create("two") });
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.callId).toMatch(/^call_s\d+$/);
+    expect(calls[1]?.callId).toMatch(/^call_s\d+$/);
+    expect(calls[0]?.callId).not.toBe(calls[1]?.callId);
   });
 });

@@ -3,6 +3,7 @@ import {
   FunctionCallItem,
   FunctionCallOutputItem,
   ModelMessageItem,
+  SemanticEvent,
   SystemMessageItem,
   UserMessageItem,
   type AgenticEnvironment,
@@ -11,6 +12,15 @@ import {
   type Tool,
 } from "@mozaik-ai/core";
 import { parse as parseJsonc } from "jsonc-parser";
+
+/** Assistant prose that arrived alongside native tool calls — UI-only, never context. */
+export const NARRATION_EVENT = "assistant_narration";
+
+export interface NarrationPayload {
+  text: string;
+}
+
+let syntheticCallCounter = 0;
 
 export type ChatCompletionFetch = (
   url: string,
@@ -28,6 +38,7 @@ export interface RunLocalChatCompletionsParams {
   signal?: AbortSignal;
   generation?: number;
   isCurrent?: () => boolean;
+  trace?: (line: string) => void;
 }
 
 interface ChatToolCall {
@@ -35,10 +46,21 @@ interface ChatToolCall {
   function?: { name?: string; arguments?: unknown };
 }
 
+/**
+ * Without a cap the model may monologue until the whole num_ctx is full
+ * (observed: gemma4 burned 9k tokens on "ok, do it" and returned nothing).
+ * 4096 still leaves room for a large propose_edit search+replace pair.
+ */
+const MAX_OUTPUT_TOKENS = 4096;
+
 interface ChatCompletionResponse {
   choices?: Array<{
+    finish_reason?: string | null;
     message?: {
       content?: string | null;
+      reasoning_content?: string | null;
+      reasoning?: string | null;
+      thinking?: string | null;
       tool_calls?: ChatToolCall[];
     };
   }>;
@@ -265,19 +287,33 @@ function deliverCompletion(
   if (!isCurrentTurn(params)) {
     return;
   }
-  const message = payload.choices?.[0]?.message;
+  const choice = payload.choices?.[0];
+  const message = choice?.message;
   if (!message) {
     params.onFailed("Empty completion from provider");
     return;
   }
+  const nativeToolCalls = message.tool_calls ?? [];
   const toolCalls =
-    message.tool_calls && message.tool_calls.length > 0
-      ? message.tool_calls
+    nativeToolCalls.length > 0
+      ? nativeToolCalls
       : parseToolCallsFromContent(message.content ?? "");
+  const reasoning = message.reasoning_content ?? message.reasoning ?? message.thinking ?? "";
+  params.trace?.(
+    `completion: content=${(message.content ?? "").length}ch reasoning=${reasoning.length}ch nativeCalls=${nativeToolCalls.length} totalCalls=${toolCalls.length} finish=${choice?.finish_reason ?? "?"}`,
+  );
   if (toolCalls.length > 0) {
-    for (const [index, call] of toolCalls.entries()) {
+    // Narrate only next to native tool_calls: content-JSON calls ARE the content.
+    const narration = nativeToolCalls.length > 0 ? (message.content ?? "").trim() : "";
+    if (narration) {
+      params.environment.deliverSemanticEvent(
+        params.caller,
+        new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text: narration }),
+      );
+    }
+    for (const call of toolCalls) {
       const item = FunctionCallItem.rehydrate({
-        callId: call.id ?? `call_${index}`,
+        callId: call.id ?? `call_s${++syntheticCallCounter}`,
         name: call.function?.name ?? "tool",
         args: toolCallArgs(call.function?.arguments),
       });
@@ -286,6 +322,12 @@ function deliverCompletion(
     return;
   }
   const text = message.content ?? "";
+  if (!text.trim() && choice?.finish_reason === "length") {
+    params.onFailed(
+      "Model hit its output token limit without a usable answer. Ask again, or ask for a smaller change.",
+    );
+    return;
+  }
   params.environment.deliverModelMessage(
     params.caller,
     ModelMessageItem.rehydrate({ text }),
@@ -301,11 +343,13 @@ export async function runLocalChatCompletions(
     const body: Record<string, unknown> = {
       model: params.model,
       messages: mapContextToChatMessages(params.context),
+      max_tokens: MAX_OUTPUT_TOKENS,
     };
     if (params.tools.length > 0) {
       body.tools = mapTools(params.tools);
       body.tool_choice = "auto";
     }
+    const started = Date.now();
     const response = await fetchImpl(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -315,7 +359,9 @@ export async function runLocalChatCompletions(
       body: JSON.stringify(body),
       signal: params.signal,
     });
+    params.trace?.(`HTTP ${response.status} in ${Date.now() - started}ms`);
     if (!isCurrentTurn(params)) {
+      params.trace?.("completion dropped: stale turn");
       return;
     }
     if (!response.ok) {
@@ -324,6 +370,9 @@ export async function runLocalChatCompletions(
     const payload = (await response.json()) as ChatCompletionResponse;
     deliverCompletion(params, payload);
   } catch (error) {
+    params.trace?.(
+      `inference error: ${(error instanceof Error ? error.message : String(error)).slice(0, 160)}`,
+    );
     if (isAbortError(error)) {
       params.onFailed(formatInferenceFailure(error, baseUrl));
       return;
