@@ -58,6 +58,10 @@ body {
   font-size: 12px;
 }
 
+.bubble.tool.running {
+  opacity: 0.55;
+}
+
 .bubble.review {
   background: var(--vscode-editorWidget-background);
 }

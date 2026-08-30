@@ -139,7 +139,7 @@ export function App() {
           messages.map((message, index) => (
             <article
               key={message.role === "review" ? message.id : `${message.role}-${index}`}
-              className={`bubble ${message.role}`}
+              className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}`}
             >
               <span className="role">{roleLabel(message.role)}</span>
               {message.role === "review" ? (

@@ -34,7 +34,36 @@ describe("applyExtMessage", () => {
       id: "c1",
       status: "running",
     });
-    expect(next[0]).toEqual({ role: "tool", text: "read_file  src/echo.ts" });
+    expect(next[0]).toEqual({
+      role: "tool",
+      text: "read_file  src/echo.ts",
+      id: "c1",
+      status: "running",
+    });
+  });
+
+  it("updates a tool line from running to done by id", () => {
+    const running = applyExtMessage([], {
+      type: "tool_call",
+      name: "read_file",
+      args: { path: "a.ts" },
+      id: "call_1",
+      status: "running",
+    });
+    const done = applyExtMessage(running, {
+      type: "tool_call",
+      name: "",
+      args: {},
+      id: "call_1",
+      status: "done",
+    });
+    expect(done).toHaveLength(1);
+    expect(done[0]).toEqual({
+      role: "tool",
+      text: "read_file  a.ts",
+      id: "call_1",
+      status: "done",
+    });
   });
 
   it("formats error lines", () => {

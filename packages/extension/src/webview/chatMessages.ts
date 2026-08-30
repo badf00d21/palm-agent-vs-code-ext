@@ -1,8 +1,15 @@
 import type { ExtToWebview } from "@palm-agent/shared";
 
 export interface TextLine {
-  role: "user" | "assistant" | "tool";
+  role: "user" | "assistant";
   text: string;
+}
+
+export interface ToolLine {
+  role: "tool";
+  text: string;
+  id: string;
+  status: "running" | "done";
 }
 
 export interface ReviewLine {
@@ -12,7 +19,7 @@ export interface ReviewLine {
   status: "pending" | "kept" | "undone";
 }
 
-export type ChatLine = TextLine | ReviewLine;
+export type ChatLine = TextLine | ToolLine | ReviewLine;
 
 export function formatToolArgs(args: unknown): string {
   if (args && typeof args === "object" && "path" in args) {
@@ -55,8 +62,15 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
     return [...messages, { role: "assistant", text: msg.text }];
   }
   if (msg.type === "tool_call") {
+    const existing = messages.findIndex((line) => line.role === "tool" && line.id === msg.id);
+    if (existing >= 0 && msg.status === "done") {
+      return messages.map((line, index) =>
+        index === existing && line.role === "tool" ? { ...line, status: "done" } : line,
+      );
+    }
     const detail = formatToolArgs(msg.args);
-    return [...messages, { role: "tool", text: detail ? `${msg.name}  ${detail}` : msg.name }];
+    const text = detail ? `${msg.name}  ${detail}` : msg.name;
+    return [...messages, { role: "tool", text, id: msg.id, status: msg.status }];
   }
   if (msg.type === "error") {
     return [...messages, { role: "assistant", text: `Error: ${msg.message}` }];
