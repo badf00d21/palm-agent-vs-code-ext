@@ -4,5 +4,7 @@ export type { AgentSession, SessionEventSink, SessionTrace } from "./session/ses
 export { createAgentSession } from "./session/session.js";
 export type { DirEntry, EditorContext, SearchHit, WorkspacePort } from "./workspace/port.js";
 export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./workspace/paths.js";
+export type { FileSuggestPlan } from "./workspace/suggest.js";
+export { planFileSuggestions, SUGGEST_EXCLUDE, SUGGEST_LIMIT } from "./workspace/suggest.js";
 export type { PendingReview, ProposedFile, ReviewHost } from "./tools/review.js";
 export { mergePending } from "./tools/review.js";

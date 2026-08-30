@@ -4,6 +4,7 @@ import {
   DEFAULT_MODEL,
   type AgentSession,
   type ModelConfig,
+  type WorkspacePort,
 } from "@palm-agent/agent-core";
 import type { ExtToWebview } from "@palm-agent/shared";
 import * as vscode from "vscode";
@@ -54,7 +55,7 @@ async function readOpenText(
 
 export function createSessionHost(log?: {
   appendLine(line: string): void;
-}): { session: AgentSession; store: ReviewStore } {
+}): { session: AgentSession; store: ReviewStore; port: WorkspacePort } {
   const port = createVsCodeWorkspacePort();
   const trace = (line: string): void => log?.appendLine(`[agent] ${line}`);
   let rawSink: (event: ExtToWebview) => void = () => undefined;
@@ -82,5 +83,6 @@ export function createSessionHost(log?: {
       },
     },
     store,
+    port,
   };
 }
