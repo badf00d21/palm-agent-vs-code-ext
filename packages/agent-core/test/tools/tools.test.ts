@@ -170,8 +170,8 @@ describe("propose_edit", () => {
     });
     expect(out).toBe("Proposed review rev_1: a.ts, b.ts");
     expect(merged[0]).toEqual([
-      { path: "a.ts", original: "alpha\nbeta\n", proposed: "ALPHA\nBETA\n" },
-      { path: "b.ts", original: "hello\n", proposed: "hi\n" },
+      { path: "a.ts", original: "alpha\nbeta\n", proposed: "ALPHA\nBETA\n", kind: "edit" },
+      { path: "b.ts", original: "hello\n", proposed: "hi\n", kind: "edit" },
     ]);
   });
 
@@ -272,7 +272,7 @@ describe("propose_edit", () => {
       files: [{ path: ".\\src\\a.ts", search: "hello", replace: "hi" }],
     });
     expect(out).toBe("Proposed review rev_1: src/a.ts");
-    expect(merged[0]).toEqual([{ path: "src/a.ts", original: "hello\n", proposed: "hi\n" }]);
+    expect(merged[0]).toEqual([{ path: "src/a.ts", original: "hello\n", proposed: "hi\n", kind: "edit" }]);
   });
 
   it("returns the exact function from the file when search is a near miss", async () => {
