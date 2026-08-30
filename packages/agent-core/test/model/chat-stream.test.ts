@@ -82,6 +82,23 @@ describe("applyChatChunk + streamMode", () => {
       function: { name: "read_file", arguments: '{"path":"a.ts"}' },
     });
   });
+
+  it("records usage from a final chunk with empty choices", () => {
+    const acc = emptyAssembly();
+    applyChatChunk(acc, { choices: [{ delta: { content: "Hi" }, finish_reason: "stop" }] });
+    applyChatChunk(acc, {
+      choices: [],
+      usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 },
+    });
+    expect(acc.content).toBe("Hi");
+    expect(acc.usage).toEqual({ prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 });
+  });
+
+  it("leaves usage unset when the stream has no usage field", () => {
+    const acc = emptyAssembly();
+    applyChatChunk(acc, { choices: [{ delta: { content: "Hi" }, finish_reason: "stop" }] });
+    expect(acc.usage).toBeUndefined();
+  });
 });
 
 describe("readSseChatCompletion", () => {

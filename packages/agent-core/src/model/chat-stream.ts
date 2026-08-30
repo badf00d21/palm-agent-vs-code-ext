@@ -6,10 +6,17 @@ export interface StreamToolCall {
   function?: { name?: string; arguments?: unknown };
 }
 
+export interface ChatUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 export interface AssembledCompletion {
   content: string;
   finishReason: string | null;
   toolCalls: StreamToolCall[];
+  usage?: ChatUsage;
 }
 
 export function emptyAssembly(): AssembledCompletion {
@@ -59,6 +66,19 @@ export function applyChatChunk(
 ): { contentDelta: string } {
   if (!chunk || typeof chunk !== "object") {
     return { contentDelta: "" };
+  }
+  const rawUsage = (chunk as { usage?: unknown }).usage;
+  if (rawUsage && typeof rawUsage === "object") {
+    const total = (rawUsage as { total_tokens?: unknown }).total_tokens;
+    if (typeof total === "number" && Number.isFinite(total)) {
+      const prompt = (rawUsage as { prompt_tokens?: unknown }).prompt_tokens;
+      const completion = (rawUsage as { completion_tokens?: unknown }).completion_tokens;
+      acc.usage = {
+        prompt_tokens: typeof prompt === "number" ? prompt : 0,
+        completion_tokens: typeof completion === "number" ? completion : 0,
+        total_tokens: total,
+      };
+    }
   }
   const choice = (chunk as { choices?: unknown[] }).choices?.[0];
   if (!choice || typeof choice !== "object") {
