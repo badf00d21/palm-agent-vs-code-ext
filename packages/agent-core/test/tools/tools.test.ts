@@ -294,4 +294,55 @@ describe("propose_edit", () => {
     expect(out).toContain("Use this exact text as search");
     expect(out).toContain("function collectVoices() {\n  return 1;\n}");
   });
+
+  it("proposes a create when search is empty and the path is absent", async () => {
+    const merged: unknown[] = [];
+    const invoke = getInvoke(
+      "propose_edit",
+      fakePort({ exists: async () => "absent" }),
+      fakeHost({ merge: (files) => { merged.push(...files); return { id: "rev_1", paths: files.map((f) => f.path) }; } }),
+    );
+    const out = await invoke({
+      files: [{ path: "src/foo.ts", search: "", replace: "export const foo = 1;\n" }],
+    });
+    expect(out).toBe("Proposed review rev_1: src/foo.ts");
+    expect(merged).toEqual([
+      { path: "src/foo.ts", original: "", proposed: "export const foo = 1;\n", kind: "create" },
+    ]);
+  });
+
+  it("proposes mkdir for a trailing-slash empty block", async () => {
+    const merged: unknown[] = [];
+    const invoke = getInvoke(
+      "propose_edit",
+      fakePort({ exists: async () => "absent" }),
+      fakeHost({ merge: (files) => { merged.push(...files); return { id: "rev_1", paths: files.map((f) => f.path) }; } }),
+    );
+    const out = await invoke({ files: [{ path: "src/components/", search: "", replace: "" }] });
+    expect(out).toBe("Proposed review rev_1: src/components/");
+    expect(merged).toEqual([
+      { path: "src/components/", original: "", proposed: "", kind: "mkdir" },
+    ]);
+  });
+
+  it("rejects empty search when the file already exists", async () => {
+    const invoke = getInvoke("propose_edit", fakePort({ exists: async () => "file" }));
+    expect(await invoke({ files: [{ path: "a.ts", search: "", replace: "x" }] })).toBe(
+      "Error: a.ts already exists",
+    );
+  });
+
+  it("rejects mkdir when the directory already exists", async () => {
+    const invoke = getInvoke("propose_edit", fakePort({ exists: async () => "dir" }));
+    expect(await invoke({ files: [{ path: "src/", search: "", replace: "" }] })).toBe(
+      "Error: src/ already exists",
+    );
+  });
+
+  it("rejects mkdir with a replace body", async () => {
+    const invoke = getInvoke("propose_edit", fakePort());
+    expect(await invoke({ files: [{ path: "dir/", search: "", replace: "x" }] })).toBe(
+      "Error: mkdir cannot have file content",
+    );
+  });
 });
