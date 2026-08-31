@@ -25,6 +25,23 @@ function sseResponse(deltas: unknown[]): Response {
   });
 }
 
+function fakeEnv(
+  overrides: {
+    deliverSemanticEvent?: AgenticEnvironment["deliverSemanticEvent"];
+    deliverModelMessage?: AgenticEnvironment["deliverModelMessage"];
+    deliverFunctionCall?: AgenticEnvironment["deliverFunctionCall"];
+  } = {},
+): AgenticEnvironment {
+  return {
+    deliverSemanticEvent: () => undefined,
+    deliverModelMessage: () => undefined,
+    deliverFunctionCall: () => {
+      throw new Error("unexpected function call");
+    },
+    ...overrides,
+  } as unknown as AgenticEnvironment;
+}
+
 describe("parseToolCallsFromContent", () => {
   it("parses the raw Qwen tool-call JSON", () => {
     const calls = parseToolCallsFromContent(
@@ -128,15 +145,11 @@ describe("runLocalChatCompletions", () => {
     process.env.OPENAI_API_KEY = "not-needed";
 
     const delivered: ModelMessageItem[] = [];
-    const environment = {
-      deliverSemanticEvent: () => undefined,
+    const environment = fakeEnv({
       deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
         delivered.push(item);
       },
-      deliverFunctionCall: () => {
-        throw new Error("unexpected function call");
-      },
-    } as unknown as AgenticEnvironment;
+    });
 
     const context = ModelContext.create("test");
     context.addContextItem(UserMessageItem.create("hi"));
@@ -171,15 +184,11 @@ describe("runLocalChatCompletions", () => {
 
   it("sends stream_options.include_usage and emits context_usage from total_tokens", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
-    const environment = {
+    const environment = fakeEnv({
       deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
         events.push({ type: item.getType(), data: item.data });
       },
-      deliverModelMessage: () => undefined,
-      deliverFunctionCall: () => {
-        throw new Error("unexpected function call");
-      },
-    } as unknown as AgenticEnvironment;
+    });
 
     const context = ModelContext.create("test");
     context.addContextItem(UserMessageItem.create("hi"));
@@ -212,15 +221,11 @@ describe("runLocalChatCompletions", () => {
 
   it("does not emit context_usage when the stream has no usage", async () => {
     const types: string[] = [];
-    const environment = {
+    const environment = fakeEnv({
       deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
         types.push(item.getType());
       },
-      deliverModelMessage: () => undefined,
-      deliverFunctionCall: () => {
-        throw new Error("unexpected function call");
-      },
-    } as unknown as AgenticEnvironment;
+    });
     const context = ModelContext.create("test");
     context.addContextItem(UserMessageItem.create("hi"));
     await runLocalChatCompletions({
@@ -239,15 +244,14 @@ describe("runLocalChatCompletions", () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
 
     let failed = "";
-    const environment = {
-      deliverSemanticEvent: () => undefined,
+    const environment = fakeEnv({
       deliverModelMessage: () => {
         throw new Error("should not deliver");
       },
       deliverFunctionCall: () => {
         throw new Error("should not deliver");
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
@@ -277,15 +281,14 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           delivered = true;
         },
         deliverFunctionCall: () => {
           delivered = true;
         },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: (message) => {
         failed = message;
@@ -319,15 +322,14 @@ describe("runLocalChatCompletions", () => {
   it("treats a JSON tool call in message content as a function call", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const calls: FunctionCallItem[] = [];
-    const environment = {
-      deliverSemanticEvent: () => undefined,
+    const environment = fakeEnv({
       deliverModelMessage: () => {
         throw new Error("should not deliver text");
       },
       deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
         calls.push(item);
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
@@ -365,15 +367,14 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           delivered = true;
         },
         deliverFunctionCall: () => {
           delivered = true;
         },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: (message) => {
         failed = message;
@@ -400,15 +401,14 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           delivered = true;
         },
         deliverFunctionCall: () => {
           delivered = true;
         },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: (message) => {
         failed = message;
@@ -432,15 +432,11 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           delivered = true;
         },
-        deliverFunctionCall: () => {
-          throw new Error("unexpected function call");
-        },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: (message) => {
         failed = message;
@@ -458,15 +454,14 @@ describe("runLocalChatCompletions", () => {
   it("turns SEARCH/REPLACE content into a propose_edit function call", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const calls: FunctionCallItem[] = [];
-    const environment = {
-      deliverSemanticEvent: () => undefined,
+    const environment = fakeEnv({
       deliverModelMessage: () => {
         throw new Error("should not deliver fence text as a model message");
       },
       deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
         calls.push(item);
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     const fence = [
       "public/audio.js",
@@ -506,15 +501,14 @@ describe("runLocalChatCompletions", () => {
   it("turns a fenced create in message.content into propose_edit with empty SEARCH", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const calls: FunctionCallItem[] = [];
-    const environment = {
-      deliverSemanticEvent: () => undefined,
+    const environment = fakeEnv({
       deliverModelMessage: () => {
         throw new Error("should not deliver fence text as a model message");
       },
       deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
         calls.push(item);
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     const fence = [
       "src/new.ts",
@@ -559,15 +553,14 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           delivered = true;
         },
         deliverFunctionCall: () => {
           delivered = true;
         },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: (message) => {
         failed = message;
@@ -599,15 +592,14 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           delivered = true;
         },
         deliverFunctionCall: () => {
           delivered = true;
         },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: (message) => {
         failed = message;
@@ -632,17 +624,14 @@ describe("runLocalChatCompletions", () => {
       model: "deepseek-v4-pro",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
+      environment: fakeEnv({
         deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
           narrations.push((item.data as { text?: string }).text ?? "");
         },
         deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
           delivered.push(item);
         },
-        deliverFunctionCall: () => {
-          throw new Error("unexpected function call");
-        },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: () => {
         throw new Error("should not fail");
@@ -665,7 +654,7 @@ describe("runLocalChatCompletions", () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const narrations: Array<SemanticEvent<unknown>> = [];
     const calls: FunctionCallItem[] = [];
-    const environment = {
+    const environment = fakeEnv({
       deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
         narrations.push(item);
       },
@@ -675,7 +664,7 @@ describe("runLocalChatCompletions", () => {
       deliverModelMessage: () => {
         throw new Error("should not deliver text");
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
@@ -714,7 +703,7 @@ describe("runLocalChatCompletions", () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const narrations: unknown[] = [];
     const calls: FunctionCallItem[] = [];
-    const environment = {
+    const environment = fakeEnv({
       deliverSemanticEvent: (_caller: unknown, item: unknown) => {
         narrations.push(item);
       },
@@ -724,7 +713,7 @@ describe("runLocalChatCompletions", () => {
       deliverModelMessage: () => {
         throw new Error("should not deliver text");
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
@@ -754,15 +743,14 @@ describe("runLocalChatCompletions", () => {
   it("assigns unique synthetic call ids across completions", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const calls: FunctionCallItem[] = [];
-    const environment = {
-      deliverSemanticEvent: () => undefined,
+    const environment = fakeEnv({
       deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
         calls.push(item);
       },
       deliverModelMessage: () => {
         throw new Error("should not deliver text");
       },
-    } as unknown as AgenticEnvironment;
+    });
 
     const params = {
       model: "deepseek-v4-pro" as const,
@@ -801,17 +789,14 @@ describe("runLocalChatCompletions", () => {
       model: "gemma4:12b",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
+      environment: fakeEnv({
         deliverSemanticEvent: (_c: unknown, item: SemanticEvent<unknown>) => {
           narrations.push((item.data as { text?: string }).text ?? "");
         },
         deliverModelMessage: (_c: unknown, item: ModelMessageItem) => {
           delivered.push(item);
         },
-        deliverFunctionCall: () => {
-          throw new Error("unexpected function call");
-        },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: () => {
         throw new Error("should not fail");
@@ -837,15 +822,14 @@ describe("runLocalChatCompletions", () => {
       model: "gemma4:12b",
       context: ModelContext.create("test"),
       tools: [],
-      environment: {
-        deliverSemanticEvent: () => undefined,
+      environment: fakeEnv({
         deliverModelMessage: () => {
           deliveredModel = true;
         },
         deliverFunctionCall: () => {
           deliveredCall = true;
         },
-      } as unknown as AgenticEnvironment,
+      }),
       caller: new BaseParticipant(),
       onFailed: () => {
         /* AbortError maps to onFailed; completion must not be delivered */
