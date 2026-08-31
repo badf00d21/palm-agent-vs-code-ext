@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspacePort } from "../../src/workspace/port.js";
 import type { ReviewHost } from "../../src/tools/review.js";
+import { invokeProposeEdit } from "../../src/tools/propose-edit.js";
 import { createWorkspaceTools, toolsVisibleToModel } from "../../src/tools/tools.js";
 
 function fakeHost(overrides: Partial<ReviewHost> = {}): ReviewHost {
@@ -157,6 +158,12 @@ describe("get_context", () => {
       activeFile: null,
       selection: null,
     });
+  });
+});
+
+describe("propose-edit module", () => {
+  it("loads invokeProposeEdit from propose-edit", () => {
+    expect(typeof invokeProposeEdit).toBe("function");
   });
 });
 
