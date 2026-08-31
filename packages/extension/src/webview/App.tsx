@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
-import { applyExtMessage, shouldClearBusy, type ChatLine, type ReviewLine } from "./chatMessages";
+import { applyExtMessage, shouldClearBusy, type ChatLine } from "./chatMessages";
 import { contextRingRatio, formatContextTooltip } from "./contextMeter";
 import { AssistantMarkdown, isPlainErrorText } from "./markdown";
+import { ReviewCard } from "./ReviewCard";
 import { getVsCodeApi } from "./vscode";
 
 function roleLabel(role: ChatLine["role"]): string {
@@ -16,79 +17,6 @@ function roleLabel(role: ChatLine["role"]): string {
     return "Review";
   }
   return "Agent";
-}
-
-function ReviewCard({
-  message,
-  postMessage,
-}: {
-  message: ReviewLine;
-  postMessage: (msg: WebviewToExt) => void;
-}) {
-  const [open, setOpen] = useState(message.status === "pending");
-  const pending = message.status === "pending";
-  const fileLabel = `${message.files.length} file${message.files.length === 1 ? "" : "s"}`;
-  const statusText =
-    message.status === "kept" ? "Kept" : message.status === "undone" ? "Undone" : undefined;
-  const filesId = `review-files-${message.id}`;
-  const hasReviewable = message.files.some((file) => file.kind !== "mkdir");
-
-  return (
-    <>
-      <div className="review-head">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={open ? filesId : undefined}
-          aria-label={statusText ? `${fileLabel}, ${statusText}` : `${fileLabel}, pending review`}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {fileLabel}
-        </button>
-        {statusText ? <span className="review-status">{statusText}</span> : null}
-      </div>
-      {open ? (
-        <div id={filesId}>
-          <ul className="review-list">
-            {message.files.map((file) => (
-              <li key={file.path}>
-                {pending && file.kind !== "mkdir" ? (
-                  <button
-                    type="button"
-                    className="review-file"
-                    onClick={() => postMessage({ type: "open_diff", id: message.id, path: file.path })}
-                  >
-                    {file.path}
-                    {file.kind === "create" ? <span className="review-kind"> new</span> : null}
-                  </button>
-                ) : (
-                  <span className={pending ? undefined : "review-file-static"}>
-                    {file.path}
-                    {file.kind === "create" ? <span className="review-kind"> new</span> : null}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {pending ? (
-            <div className="review-actions">
-              <button type="button" onClick={() => postMessage({ type: "reject_diff", id: message.id })}>
-                Undo All
-              </button>
-              <button type="button" onClick={() => postMessage({ type: "apply_diff", id: message.id })}>
-                Keep All
-              </button>
-              {hasReviewable ? (
-                <button type="button" onClick={() => postMessage({ type: "open_diff", id: message.id })}>
-                  Review
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </>
-  );
 }
 
 const RING_RADIUS = 5.5;
