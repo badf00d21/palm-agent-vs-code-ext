@@ -1,7 +1,7 @@
 # Hygiene split — design spec
 
 **Datum:** 2026-08-31  
-**Status:** predlog — čeka review  
+**Status:** odobren  
 **Nastavlja:** postojeći SEARCH/REPLACE + review loop  
 **Ne pokriva:** nove biblioteke, `node:test` umesto Vitest, cookbook “8 linija po funkciji”, polymorphism za `kind`, prepisivanje velikih test fajlova, promenu ponašanja
 
