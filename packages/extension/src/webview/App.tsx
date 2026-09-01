@@ -16,6 +16,9 @@ function roleLabel(role: ChatLine["role"]): string {
   if (role === "review") {
     return "Review";
   }
+  if (role === "status") {
+    return "Status";
+  }
   return "Agent";
 }
 
@@ -84,6 +87,12 @@ export function App() {
         setSuggestions(msg.paths);
         setSuggestReady(true);
         setHighlight(0);
+        return;
+      }
+      if (msg.type === "session_cleared") {
+        setMessages([]);
+        setContext(null);
+        setBusy(false);
         return;
       }
       if (msg.type === "context_usage") {
@@ -344,6 +353,14 @@ export function App() {
         <div className="composer-actions">
           {context ? <ContextRing used={context.used} max={context.max} /> : null}
           <div className="composer-buttons">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || messages.length === 0}
+              onClick={() => vscodeRef.current.postMessage({ type: "new_chat" })}
+            >
+              New chat
+            </button>
             <button
               type="button"
               className="secondary"

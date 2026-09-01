@@ -114,7 +114,7 @@ Every color is a live VS Code theme variable. Hex is not the source of truth.
 
 ### Primary
 - **Button fill** (`{colors.button-bg}`): Keep All, Undo All, Send, Stop, Review. Pair with `{colors.button-fg}`. Hover `{colors.button-hover}`.
-- **Secondary fill** (`{colors.button-secondary-bg}`): Add selection. Pair with `{colors.button-secondary-fg}`. Hover `{colors.button-secondary-hover}`.
+- **Secondary fill** (`{colors.button-secondary-bg}`): Add selection and New chat. Pair with `{colors.button-secondary-fg}`. Hover `{colors.button-secondary-hover}`.
 - **Error** (`{colors.error}`): Assistant lines that start with `Error:`.
 
 ### Neutral
@@ -142,7 +142,7 @@ Every color is a live VS Code theme variable. Hex is not the source of truth.
 ### Hierarchy
 - **Body** (regular, host size, ~1.4): Assistant and user prose; `pre-wrap`, break long tokens.
 - **Title** (inherit, host size): Review file-count toggle. No separate weight.
-- **Label** (11px, uppercase, 0.04em, 70% opacity): `You` / `Agent` / `Tool` / `Review` above each bubble.
+- **Label** (11px, uppercase, 0.04em, 70% opacity): `You` / `Agent` / `Tool` / `Review` / `Status` above each bubble.
 - **Tool** (12px, editor family, 75% opacity; 55% while running): `read_file  path`.
 
 **The Two Voices Rule.** Prose uses the UI font. Tool traces use the editor font. Do not invert them.
@@ -172,7 +172,7 @@ Message and review cards: gently curved 6px (`{rounded.sm}`), 1px `{colors.borde
 ### Buttons
 - **Shape:** square host button (no radius)
 - **Primary:** `{colors.button-bg}` / `{colors.button-fg}`, padding 6px 12px. Send, Stop, Keep All, Undo All, Review.
-- **Secondary:** Add selection uses `{colors.button-secondary-bg}` / `{colors.button-secondary-fg}`.
+- **Secondary:** Add selection and New chat use `{colors.button-secondary-bg}` / `{colors.button-secondary-fg}`.
 - **Hover / Focus:** `{colors.button-hover}` (or `{colors.button-secondary-hover}`); focus is 1px `{colors.focus}`
 - **Disabled:** 50% opacity, default cursor
 - **Ghost:** review header and file links — no fill; file links use `{colors.link}`
@@ -193,7 +193,7 @@ Message and review cards: gently curved 6px (`{rounded.sm}`), 1px `{colors.borde
 None inside the webview. Activity-bar icon and view title are VS Code chrome, not this system.
 
 ### Message bubble (signature)
-Role label (label type) then body. User vs assistant vs tool vs review vs waiting (85% opacity). Tool running is dimmer (55%). Consecutive assistant deltas append in one bubble.
+Role label (label type) then body. User vs assistant vs tool vs review vs status vs waiting (85% opacity). Status is plain text, with no markdown. Tool running is dimmer (55%). Consecutive assistant deltas append in one bubble.
 
 ### Review card (signature)
 Collapsible file list, native-looking actions: Undo All / Keep All / Review. Paths are links, not secondary buttons.

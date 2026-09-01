@@ -67,6 +67,11 @@ body {
   background: var(--vscode-editorWidget-background);
 }
 
+.bubble.status {
+  background: transparent;
+  opacity: 0.85;
+}
+
 .review-head,
 .review-actions {
   display: flex;
