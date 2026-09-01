@@ -479,6 +479,144 @@ describe("runLocalChatCompletions", () => {
     expect(failed).toMatch(/output token limit/);
   });
 
+  it("drops an unfinished ramble that hit the token cap instead of keeping it as context", async () => {
+    // A model whose reasoning channel leaks into content can spend the whole
+    // output budget deliberating and stop mid-word. That text is not an answer,
+    // and in a 16k window it would crowd out every later turn.
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    let delivered = false;
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: fakeEnv({
+        deliverModelMessage: () => {
+          delivered = true;
+        },
+        deliverFunctionCall: () => {
+          delivered = true;
+        },
+      }),
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        sseResponse([
+          {
+            delta: { content: "Wait, I'll just do it. Actually, I'll modify `view." },
+            finish_reason: "length",
+          },
+        ]),
+    });
+
+    expect(delivered).toBe(false);
+    expect(failed).toMatch(/without reaching an answer or a tool call/);
+  });
+
+  it("keeps a fence that hit the token cap, because it is still actionable", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const calls: FunctionCallItem[] = [];
+    let failed = "";
+
+    const fence = [
+      "a.ts",
+      "<<<<<<< SEARCH",
+      "old",
+      "=======",
+      "new",
+      ">>>>>>> REPLACE",
+      "and then I was cut off mid-",
+    ].join("\n");
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: fakeEnv({
+        deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+          calls.push(item);
+        },
+      }),
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        sseResponse([{ delta: { content: fence }, finish_reason: "length" }]),
+    });
+
+    expect(failed).toBe("");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe("propose_edit");
+  });
+
+  it("keeps a native tool call that hit the token cap", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const calls: FunctionCallItem[] = [];
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: fakeEnv({
+        deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+          calls.push(item);
+        },
+      }),
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        sseResponse([
+          {
+            delta: {
+              content: "thinking out loud",
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_1",
+                  function: { name: "read_file", arguments: '{"path":"a.ts"}' },
+                },
+              ],
+            },
+            finish_reason: "length",
+          },
+        ]),
+    });
+
+    expect(failed).toBe("");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("still delivers a complete answer that stopped normally", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const delivered: ModelMessageItem[] = [];
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment: fakeEnv({
+        deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
+          delivered.push(item);
+        },
+      }),
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        sseResponse([{ delta: { content: "A long but finished answer." }, finish_reason: "stop" }]),
+    });
+
+    expect(delivered).toHaveLength(1);
+  });
+
   it("fails when SSE finishes with empty content and no tool calls", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     let delivered = false;

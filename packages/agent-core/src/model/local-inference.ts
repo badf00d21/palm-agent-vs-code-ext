@@ -359,6 +359,9 @@ export async function runLocalChatCompletions(
     }
     const hasNativeTools = assembled.toolCalls.length > 0;
     const emptyContent = !assembled.content.trim();
+    const contentCalls = parseToolCallsFromContent(assembled.content).length;
+    const contentFences = parseSearchReplaceBlocks(assembled.content).length;
+    const actionable = hasNativeTools || contentCalls > 0 || contentFences > 0;
     if (!hasNativeTools && emptyContent) {
       if (assembled.finishReason === "length") {
         params.onFailed(
@@ -373,13 +376,20 @@ export async function runLocalChatCompletions(
       }
       return;
     }
-    if (
-      !hasNativeTools &&
-      !emptyContent &&
-      !emittedNarration &&
-      parseToolCallsFromContent(assembled.content).length === 0 &&
-      parseSearchReplaceBlocks(assembled.content).length === 0
-    ) {
+    if (!actionable && assembled.finishReason === "length") {
+      // The model talked until it ran out of budget and never reached an answer
+      // or a call: text cut off mid-sentence is not a result. Observed with a
+      // model whose reasoning channel leaks into content — it spent the whole
+      // budget deliberating. Failing here keeps those tokens out of the context,
+      // where in a 16k window they would crowd out every later turn. The prose
+      // already streamed to the UI, so the human still sees what happened.
+      params.trace?.(`dropped ${assembled.content.length}ch of unfinished output (length cap)`);
+      params.onFailed(
+        `Model used all ${MAX_OUTPUT_TOKENS} output tokens without reaching an answer or a tool call, so its unfinished text was dropped instead of kept as context. Ask for one concrete step, or try a smaller request.`,
+      );
+      return;
+    }
+    if (!hasNativeTools && !emptyContent && !emittedNarration && !actionable) {
       params.environment.deliverSemanticEvent(
         params.caller,
         new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text: assembled.content }),

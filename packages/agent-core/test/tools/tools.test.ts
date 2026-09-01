@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkspacePort } from "../../src/workspace/port.js";
 import type { ReviewHost } from "../../src/tools/review.js";
 import { invokeProposeEdit } from "../../src/tools/propose-edit.js";
-import { createWorkspaceTools, toolsVisibleToModel } from "../../src/tools/tools.js";
+import { SYSTEM_PROMPT, createWorkspaceTools, toolsVisibleToModel } from "../../src/tools/tools.js";
 
 function fakeHost(overrides: Partial<ReviewHost> = {}): ReviewHost {
   return {
@@ -347,6 +347,33 @@ describe("list_dir", () => {
       }),
     );
     expect(await invoke({ path: "." })).toBe("file a.ts\ndir src");
+  });
+});
+
+describe("question tool wiring", () => {
+  const questionHost = { ask: async () => "axum" };
+
+  it("is offered only when a host can put the question to a human", () => {
+    const without = createWorkspaceTools(fakePort(), fakeHost()).map((t) => t.name);
+    expect(without).not.toContain("question");
+    const withHost = createWorkspaceTools(fakePort(), fakeHost(), questionHost).map((t) => t.name);
+    expect(withHost).toContain("question");
+  });
+
+  it("invites the model to ask rather than warning it off", () => {
+    // The model once reasoned "I'd ask, but I can't ask" and burned its whole
+    // output budget deliberating instead. The description must read as a call.
+    const tool = createWorkspaceTools(fakePort(), fakeHost(), questionHost).find(
+      (t) => t.name === "question",
+    );
+    expect(tool?.description).toMatch(/Call this whenever/);
+    expect(tool?.description).not.toMatch(/only when/);
+  });
+
+  it("tells the model in the system prompt that intent is worth asking about", () => {
+    expect(SYSTEM_PROMPT).toMatch(/call question once/);
+    // The old rule still stands for facts a tool can supply.
+    expect(SYSTEM_PROMPT).toMatch(/Never ask the human for a path or snippet/);
   });
 });
 
