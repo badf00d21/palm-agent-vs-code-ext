@@ -37,6 +37,9 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.commands.registerCommand("agent.focus", () => {
         void vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
       }),
+      vscode.commands.registerCommand("palmAgent.newChat", () => {
+        provider.newChat();
+      }),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

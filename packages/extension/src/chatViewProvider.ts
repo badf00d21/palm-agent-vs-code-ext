@@ -15,6 +15,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewId = "palmAgent.chat";
 
   private readonly host: SessionHost;
+  private post: ((event: ExtToWebview) => void) | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -34,10 +35,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void webviewView.webview.postMessage(event);
     };
 
+    this.post = post;
     this.host.session.setSink(post);
     webviewView.webview.onDidReceiveMessage((message: WebviewToExt) => {
       void this.routeMessage(message, post);
     });
+  }
+
+  newChat(): void {
+    if (this.host.session.busy) {
+      return;
+    }
+    this.host.store.clear();
+    this.host.session.reset();
+    this.post?.({ type: "session_cleared" });
   }
 
   private async routeMessage(
@@ -50,6 +61,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return;
       case "cancel":
         this.host.session.cancel();
+        return;
+      case "new_chat":
+        this.newChat();
         return;
       case "apply_diff": {
         const event = await this.host.store.apply(message.id);

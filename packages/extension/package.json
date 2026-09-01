@@ -14,7 +14,8 @@
   "activationEvents": [
     "onStartupFinished",
     "onView:palmAgent.chat",
-    "onCommand:agent.focus"
+    "onCommand:agent.focus",
+    "onCommand:palmAgent.newChat"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -40,6 +41,10 @@
       {
         "command": "agent.focus",
         "title": "Palm Agent: Focus Chat"
+      },
+      {
+        "command": "palmAgent.newChat",
+        "title": "Palm Agent: New Chat"
       }
     ],
     "keybindings": [
