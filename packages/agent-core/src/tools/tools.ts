@@ -2,7 +2,7 @@ import type { Tool } from "@mozaik-ai/core";
 import { locateWorkspaceFile } from "../workspace/locate.js";
 import { toPosix } from "../workspace/paths.js";
 import type { WorkspacePort } from "../workspace/port.js";
-import { invokeProposeEdit } from "./propose-edit.js";
+import { invokeEdit, invokeProposeEdit, invokeWrite } from "./propose-edit.js";
 import { lineCount, sliceByLines } from "./read-range.js";
 import type { ReviewHost } from "./review.js";
 
@@ -14,17 +14,23 @@ const START_ONLY_LINE_WINDOW = 80;
 
 export const SYSTEM_PROMPT =
   "You are a coding assistant in a local workspace. Use tools to find and read code before answering. Do not invent file contents or paths. " +
-  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. After search, read_file with start_line and end_line around the hit (about 40 lines), then copy SEARCH from that slice (not from the [lines:] header). " +
-  "To create or change a file you MUST write SEARCH/REPLACE blocks directly in your message. That is the only way to write to disk. Do not call a tool to edit. Pasting code inside ``` fences writes nothing. Never claim a file was created, and never say you cannot create or edit files — writing the block is how you do it. " +
-  "Each block is exactly:\npath/to/file\n<<<<<<< SEARCH\nexact old text from read_file\n=======\nnew text\n>>>>>>> REPLACE\n" +
-  "For an existing file, SEARCH is a literal substring copied from read_file (one function or about 20-40 lines per block); read the file first so it matches. For a NEW file, leave SEARCH empty and put the whole file body in REPLACE. For a new empty directory, use a path ending with / and leave SEARCH and REPLACE empty. To create several files, write one block per file in the same message. " +
-  "Example that creates two files:\nsrc/model.h\n<<<<<<< SEARCH\n=======\n#pragma once\nstruct User { };\n>>>>>>> REPLACE\nsrc/main.cpp\n<<<<<<< SEARCH\n=======\nint main() { return 0; }\n>>>>>>> REPLACE\n" +
-  "Do not use wildcards like {[^}]*} in SEARCH; it is literal text. If a tool result includes exact function text after Search not found, use that as SEARCH and write the block again. If a tool result starts with Error:, fix the arguments and try again instead of apologizing or giving up. " +
-  "When the user confirms (for example: ok, do it, yes, uradi, hajde), immediately write the SEARCH/REPLACE blocks — do not restate the plan and do not paste code without the markers. " +
-  "Never write to disk yourself; the human reviews Keep All / Undo All. After a successful edit proposal, reply in one short sentence. " +
-  "Do not roleplay, do not use personal names, and do not reply with a single unrelated word. " +
-  "Never overwrite: if the path exists, read it and use a real SEARCH.";
+  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. After search, read_file with start_line and end_line around the hit (about 40 lines), then copy old_string from that slice (not from the [lines:] header). " +
+  "To create or change a file you MUST call the write or edit tool. That is the only way a change reaches the human. Pasting code in a ``` fence writes nothing. Never claim a file was created unless a tool result confirmed it, and never say you cannot create or edit files. " +
+  "write takes path and content, and creates the file or replaces it whole. Use it for new files. " +
+  "edit takes path, old_string, and new_string, and replaces one literal piece of an existing file. Prefer edit for a file that already exists. old_string must be text copied exactly from read_file, long enough to appear only once (one function, or about 20-40 lines). It is literal text, never a wildcard like {[^}]*}. " +
+  "One call changes one file. To create or change several files, call the tool once per file; the changes collect into a single review. " +
+  "If a tool result starts with Error:, fix the arguments and call again instead of apologizing or giving up. If the result gives exact text after old_string not found, call edit again using that text verbatim. " +
+  "When the user confirms (for example: ok, do it, yes, uradi, hajde), immediately call the tools — do not restate the plan and do not paste the code as your answer. " +
+  "You never write to disk; the human reviews every change with Keep All / Undo All. After a successful proposal, reply in one short sentence. " +
+  "Do not roleplay, do not use personal names, and do not reply with a single unrelated word.";
 
+/**
+ * `write` and `edit` are real schema tools — flat args survive Ollama's tool
+ * parser where propose_edit's nested files[] did not. `propose_edit` stays out
+ * of the schema: it is now only the internal target for SEARCH/REPLACE fences
+ * parsed out of message content (the fallback for models that write markers
+ * instead of calling a tool).
+ */
 export function toolsVisibleToModel(tools: Tool[]): Tool[] {
   return tools.filter((tool) => tool.name !== "propose_edit");
 }
@@ -147,6 +153,39 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
           return `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
       },
+    },
+    {
+      name: "write",
+      description:
+        "Create a file, or replace an existing file whole, with the given content. Use this for new files. Does not write disk: the human reviews Keep All / Undo All. A path ending in / with empty content proposes a new empty directory.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Workspace-relative path" },
+          content: { type: "string", description: "Full file body" },
+        },
+        required: ["path", "content"],
+      },
+      invoke: async (args) => invokeWrite(args, port, reviewHost),
+    },
+    {
+      name: "edit",
+      description:
+        "Replace one literal piece of an existing file. old_string must be copied exactly from read_file and must appear exactly once. Does not write disk: the human reviews Keep All / Undo All. One call edits one file; call again for another file.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Workspace-relative path or unique filename" },
+          old_string: { type: "string", description: "Exact text from read_file to replace" },
+          new_string: { type: "string", description: "Replacement text" },
+        },
+        required: ["path", "old_string", "new_string"],
+      },
+      invoke: async (args) => invokeEdit(args, port, reviewHost),
     },
     {
       name: "propose_edit",
