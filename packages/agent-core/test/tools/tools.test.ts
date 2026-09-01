@@ -350,6 +350,72 @@ describe("list_dir", () => {
   });
 });
 
+describe("glob", () => {
+  it("returns matching paths sorted", async () => {
+    const invoke = getInvoke(
+      "glob",
+      fakePort({ findFiles: async () => ["src/b.ts", "src/a.ts", "main.ts"] }),
+    );
+    expect(await invoke({ pattern: "**/*.ts" })).toBe("main.ts\nsrc/a.ts\nsrc/b.ts");
+  });
+
+  it("asks for one over the limit so a full page reads as truncated", async () => {
+    const asked: Array<number | undefined> = [];
+    const invoke = getInvoke(
+      "glob",
+      fakePort({
+        findFiles: async (_pattern, limit) => {
+          asked.push(limit);
+          return Array.from({ length: 51 }, (_, i) => `f${String(i).padStart(3, "0")}.ts`);
+        },
+      }),
+    );
+    const out = await invoke({ pattern: "**/*.ts" });
+    expect(asked).toEqual([51]);
+    expect(out).toContain("[truncated to 50 files; narrow the pattern]");
+    expect(out.split("\n").filter((l: string) => l.endsWith(".ts")).length).toBe(50);
+  });
+
+  it("does not claim truncation on an exactly full page", async () => {
+    const invoke = getInvoke(
+      "glob",
+      fakePort({
+        findFiles: async () => Array.from({ length: 50 }, (_, i) => `f${String(i).padStart(3, "0")}.ts`),
+      }),
+    );
+    expect(await invoke({ pattern: "**/*.ts" })).not.toContain("truncated");
+  });
+
+  it("reports no matches", async () => {
+    const invoke = getInvoke("glob", fakePort({ findFiles: async () => [] }));
+    expect(await invoke({ pattern: "**/*.zig" })).toBe("No matches");
+  });
+
+  it("rejects an empty pattern", async () => {
+    const invoke = getInvoke("glob", fakePort());
+    expect(await invoke({ pattern: "  " })).toBe(
+      "Error: glob requires a pattern, for example **/*.ts",
+    );
+  });
+
+  it("feeds a port failure back as an error", async () => {
+    const invoke = getInvoke(
+      "glob",
+      fakePort({
+        findFiles: async () => {
+          throw new Error("No workspace folder open");
+        },
+      }),
+    );
+    expect(await invoke({ pattern: "*.ts" })).toBe("Error: No workspace folder open");
+  });
+
+  it("is visible to the model", () => {
+    const names = toolsVisibleToModel(createWorkspaceTools(fakePort(), fakeHost())).map((t) => t.name);
+    expect(names).toContain("glob");
+  });
+});
+
 describe("search", () => {
   it("rejects an empty query", async () => {
     const invoke = getInvoke("search", fakePort());

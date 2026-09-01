@@ -9,12 +9,14 @@ import type { ReviewHost } from "./review.js";
 /** Local models run with a 16–32k num_ctx budget; one read must not eat it. */
 const READ_LIMIT = 24_000;
 const SEARCH_LIMIT = 50;
+/** Paths are short, but a whole tree would still crowd out the turn's real work. */
+const GLOB_LIMIT = 50;
 /** start_line without end_line must not dump the rest of the file into context. */
 const START_ONLY_LINE_WINDOW = 80;
 
 export const SYSTEM_PROMPT =
   "You are a coding assistant in a local workspace. Use tools to find and read code before answering. Do not invent file contents or paths. " +
-  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. After search, read_file with start_line and end_line around the hit (about 40 lines), then copy old_string from that slice (not from the [lines:] header). " +
+  "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Use glob to see which files exist and search to look inside them. Never ask the human for a path or snippet you can get with tools. read_file accepts a unique filename like abc-import.ts. After search, read_file with start_line and end_line around the hit (about 40 lines), then copy old_string from that slice (not from the [lines:] header). " +
   "To create or change a file you MUST call the write or edit tool. That is the only way a change reaches the human. Pasting code in a ``` fence writes nothing. Never claim a file was created unless a tool result confirmed it, and never say you cannot create or edit files. " +
   "write takes path and content, and creates the file or replaces it whole. Use it for new files. " +
   "edit takes path, old_string, and new_string, and replaces one literal piece of an existing file. Prefer edit for a file that already exists. old_string must be text copied exactly from read_file, long enough to appear only once (one function, or about 20-40 lines). It is literal text, never a wildcard like {[^}]*}. " +
@@ -135,6 +137,44 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
             lines.push("[truncated to 50 hits]");
           }
           return lines.join("\n") || "No matches";
+        } catch (error) {
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      },
+    },
+    {
+      name: "glob",
+      description:
+        "Find files by name or pattern, for example **/*.rs, src/**/*.ts, or Cargo.toml. Returns workspace-relative paths. Use this to see which files exist; use search to look inside them.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: "Glob such as **/*.ts, or a bare filename",
+          },
+        },
+        required: ["pattern"],
+      },
+      invoke: async (args) => {
+        const pattern = String(args.pattern ?? "").trim();
+        if (!pattern) {
+          return "Error: glob requires a pattern, for example **/*.ts";
+        }
+        try {
+          // One over the limit so a full page can be reported as truncated
+          // rather than silently looking like the complete answer.
+          const hits = await port.findFiles(pattern, GLOB_LIMIT + 1);
+          const paths = [...hits].sort();
+          const shown = paths.slice(0, GLOB_LIMIT);
+          if (shown.length === 0) {
+            return "No matches";
+          }
+          return paths.length > GLOB_LIMIT
+            ? `${shown.join("\n")}\n[truncated to ${GLOB_LIMIT} files; narrow the pattern]`
+            : shown.join("\n");
         } catch (error) {
           return `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
