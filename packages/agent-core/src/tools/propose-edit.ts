@@ -90,7 +90,9 @@ export async function invokeProposeEdit(
     }
     if (group.kind === "create" || group.kind === "mkdir") {
       if ((await port.exists(filePath)) !== "absent") {
-        return `Error: ${filePath} already exists`;
+        return group.kind === "create"
+          ? `Error: ${filePath} already exists. To change it, read_file it and copy its exact text into SEARCH (do not leave SEARCH empty).`
+          : `Error: ${filePath} already exists`;
       }
       const last = group.blocks[group.blocks.length - 1];
       proposed.push({

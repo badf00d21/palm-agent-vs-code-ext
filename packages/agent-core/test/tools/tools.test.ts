@@ -359,11 +359,11 @@ describe("propose_edit", () => {
     ]);
   });
 
-  it("rejects empty search when the file already exists", async () => {
+  it("rejects empty search when the file already exists and steers toward an edit", async () => {
     const invoke = getInvoke("propose_edit", fakePort({ exists: async () => "file" }));
-    expect(await invoke({ files: [{ path: "a.ts", search: "", replace: "x" }] })).toBe(
-      "Error: a.ts already exists",
-    );
+    const out = await invoke({ files: [{ path: "a.ts", search: "", replace: "x" }] });
+    expect(out).toContain("Error: a.ts already exists");
+    expect(out).toContain("read_file");
   });
 
   it("rejects mkdir when the directory already exists", async () => {

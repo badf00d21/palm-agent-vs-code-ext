@@ -137,6 +137,13 @@ export function formatInferenceFailure(error: unknown, baseUrl = configuredBaseU
 
 export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
   const messages: ChatMessage[] = [];
+  // propose_edit is synthetic — it is never in the Ollama tool schema. Surfacing
+  // it in history as an assistant tool_call teaches Gemma to emit a native
+  // call:propose_edit{...}, which Ollama's tool parser then fails on (huge escaped
+  // code → "unexpected end of JSON input") and returns an empty completion. So we
+  // fold each propose_edit call/output pair into plain assistant prose instead:
+  // the model still learns it proposed edits, without a tool_call to imitate.
+  const proposeEditCallIds = new Set<string>();
   for (const item of context.getItems()) {
     if (item instanceof DeveloperMessageItem || item instanceof SystemMessageItem) {
       messages.push({ role: "system", content: item.content.text });
@@ -151,6 +158,10 @@ export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
       continue;
     }
     if (item instanceof FunctionCallItem) {
+      if (item.name === "propose_edit") {
+        proposeEditCallIds.add(item.callId);
+        continue;
+      }
       const toolCall = {
         id: item.callId,
         type: "function" as const,
@@ -166,6 +177,10 @@ export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
       continue;
     }
     if (item instanceof FunctionCallOutputItem) {
+      if (proposeEditCallIds.has(item.callId)) {
+        messages.push({ role: "assistant", content: item.output.text });
+        continue;
+      }
       messages.push({
         role: "tool",
         tool_call_id: item.callId,

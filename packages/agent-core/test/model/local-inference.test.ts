@@ -2,6 +2,7 @@ import {
   AgenticEnvironment,
   BaseParticipant,
   FunctionCallItem,
+  FunctionCallOutputItem,
   ModelContext,
   ModelMessageItem,
   SemanticEvent,
@@ -9,6 +10,7 @@ import {
 } from "@mozaik-ai/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  mapContextToChatMessages,
   parseToolCallsFromContent,
   runLocalChatCompletions,
 } from "../../src/model/local-inference.js";
@@ -128,6 +130,60 @@ describe("parseToolCallsFromContent", () => {
     const calls = parseToolCallsFromContent(text);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.function?.name).toBe("propose_edit");
+  });
+});
+
+describe("mapContextToChatMessages", () => {
+  it("folds a propose_edit call/output into prose so Gemma cannot imitate the tool", () => {
+    const context = ModelContext.create("test");
+    context.addContextItem(UserMessageItem.create("create files"));
+    context.addContextItem(
+      FunctionCallItem.rehydrate({
+        callId: "call_s1",
+        name: "propose_edit",
+        args: JSON.stringify({ files: [{ path: "a.ts", search: "", replace: "x" }] }),
+      }),
+    );
+    context.addContextItem(FunctionCallOutputItem.create("call_s1", "Proposed review rev_1: a.ts"));
+
+    const messages = mapContextToChatMessages(context);
+
+    // No assistant message advertises a propose_edit tool_call, and there is no
+    // orphan tool result — both would teach the native call:propose_edit dialect.
+    expect(
+      messages.some(
+        (m) =>
+          m.role === "assistant" &&
+          (m.tool_calls ?? []).some((t) => t.function.name === "propose_edit"),
+      ),
+    ).toBe(false);
+    expect(messages.some((m) => m.role === "tool")).toBe(false);
+    // The outcome survives as prose so the model knows it proposed the edit.
+    expect(
+      messages.some((m) => m.role === "assistant" && m.content === "Proposed review rev_1: a.ts"),
+    ).toBe(true);
+  });
+
+  it("keeps a real tool (read_file) as a tool_call with a tool result", () => {
+    const context = ModelContext.create("test");
+    context.addContextItem(
+      FunctionCallItem.rehydrate({
+        callId: "call_1",
+        name: "read_file",
+        args: JSON.stringify({ path: "a.ts" }),
+      }),
+    );
+    context.addContextItem(FunctionCallOutputItem.create("call_1", "file body"));
+
+    const messages = mapContextToChatMessages(context);
+
+    expect(
+      messages.some(
+        (m) =>
+          m.role === "assistant" && (m.tool_calls ?? []).some((t) => t.function.name === "read_file"),
+      ),
+    ).toBe(true);
+    expect(messages.some((m) => m.role === "tool" && m.tool_call_id === "call_1")).toBe(true);
   });
 });
 
