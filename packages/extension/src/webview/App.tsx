@@ -3,6 +3,7 @@ import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
 import { applyExtMessage, shouldClearBusy, type ChatLine } from "./chatMessages";
 import { contextRingRatio, formatContextTooltip } from "./contextMeter";
 import { AssistantMarkdown, isPlainErrorText } from "./markdown";
+import { QuestionCard } from "./QuestionCard";
 import { ReviewCard } from "./ReviewCard";
 import { getVsCodeApi } from "./vscode";
 
@@ -18,6 +19,9 @@ function roleLabel(role: ChatLine["role"]): string {
   }
   if (role === "status") {
     return "Status";
+  }
+  if (role === "question") {
+    return "Question";
   }
   return "Agent";
 }
@@ -210,6 +214,10 @@ export function App() {
     vscodeRef.current.postMessage(msg);
   };
 
+  // An open question is human time, not model time: showing the model spinner
+  // under it would claim the agent is thinking when it is waiting on a person.
+  const awaitingAnswer = messages.some((line) => line.role === "question" && !line.settled);
+
   const shownSuggestions =
     suggestQuery && suggestQuery.length > 0
       ? suggestions.filter((path) => path.toLowerCase().includes(suggestQuery.toLowerCase()))
@@ -231,12 +239,18 @@ export function App() {
         ) : (
           messages.map((message, index) => (
             <article
-              key={message.role === "review" ? message.id : `${message.role}-${index}`}
+              key={
+                message.role === "review" || message.role === "question"
+                  ? message.id
+                  : `${message.role}-${index}`
+              }
               className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}${message.role === "assistant" && isPlainErrorText(message.text) ? " error" : ""}`}
             >
               <span className="role">{roleLabel(message.role)}</span>
               {message.role === "review" ? (
                 <ReviewCard message={message} postMessage={postMessage} />
+              ) : message.role === "question" ? (
+                <QuestionCard message={message} postMessage={postMessage} />
               ) : message.role === "assistant" && !isPlainErrorText(message.text) ? (
                 <AssistantMarkdown
                   text={message.text}
@@ -248,7 +262,7 @@ export function App() {
             </article>
           ))
         )}
-        {busy && messages[messages.length - 1]?.role !== "assistant" ? (
+        {busy && messages[messages.length - 1]?.role !== "assistant" && !awaitingAnswer ? (
           <article className="bubble assistant waiting" aria-live="polite" aria-busy="true">
             <span className="role">Agent</span>
             <p className="waiting-line">

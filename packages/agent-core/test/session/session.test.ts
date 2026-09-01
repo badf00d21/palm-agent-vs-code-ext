@@ -106,6 +106,115 @@ describe("createAgentSession inference failures", () => {
     expect(events.some((e) => e.type === "done")).toBe(true);
   });
 
+  it("asks the human, waits, and feeds the answer back to the model", async () => {
+    const bodies: Array<{ messages: Array<{ role: string; content?: string | null }> }> = [];
+    let posts = 0;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      posts += 1;
+      if (posts === 1) {
+        return sseResponse([
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_q",
+                  function: {
+                    name: "question",
+                    arguments: '{"question":"Which framework?","options":["axum","actix"]}',
+                  },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ]);
+      }
+      return sseResponse([{ delta: { content: "Using axum." }, finish_reason: "stop" }]);
+    }) as typeof fetch;
+
+    const events: ExtToWebview[] = [];
+    const session = createAgentSession(
+      fakePort(),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      (event) => {
+        events.push(event);
+        // The turn is parked on the human until answerQuestion is called.
+        if (event.type === "question_asked") {
+          queueMicrotask(() => session.answerQuestion(event.id, "axum"));
+        }
+      },
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    await session.startTurn("pick a framework");
+
+    const asked = events.find((e) => e.type === "question_asked");
+    expect(asked).toMatchObject({ question: "Which framework?", options: ["axum", "actix"] });
+    expect(events.some((e) => e.type === "question_settled" && e.answer === "axum")).toBe(true);
+
+    const toolReply = bodies[1]!.messages.find((m) => m.role === "tool");
+    expect(toolReply?.content).toBe("The user answered: axum");
+    expect(posts).toBe(2);
+  });
+
+  it("releases a waiting question when the turn is cancelled", async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        {
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_q",
+                function: { name: "question", arguments: '{"question":"Which one?"}' },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ])) as typeof fetch;
+
+    const events: ExtToWebview[] = [];
+    const session = createAgentSession(
+      fakePort(),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      (event) => {
+        events.push(event);
+        if (event.type === "question_asked") {
+          // Stop pressed while the question is still on screen.
+          queueMicrotask(() => session.cancel());
+        }
+      },
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    // Without releasing the pending promise this never settles.
+    await session.startTurn("pick one");
+
+    expect(events.some((e) => e.type === "question_settled" && e.answer === null)).toBe(true);
+    expect(session.busy).toBe(false);
+  });
+
+  it("ignores an answer for a question that is no longer open", async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([{ delta: { content: "ok" }, finish_reason: "stop" }])) as typeof fetch;
+
+    const events: ExtToWebview[] = [];
+    const session = createAgentSession(
+      fakePort(),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      (event) => events.push(event),
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    await session.startTurn("hello");
+    session.answerQuestion("q_nope", "late answer");
+
+    expect(events.some((e) => e.type === "question_settled")).toBe(false);
+  });
+
   it("settles startTurn immediately when the provider is unreachable", async () => {
     globalThis.fetch = (async () => {
       throw new TypeError("fetch failed");

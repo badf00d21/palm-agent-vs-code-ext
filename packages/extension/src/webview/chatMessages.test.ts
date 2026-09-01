@@ -81,7 +81,68 @@ describe("applyExtMessage", () => {
   it("formats error lines", () => {
     const next = applyExtMessage([], { type: "error", message: "Agent is busy" });
     const line = next[0];
-    expect(line && line.role !== "review" ? line.text : undefined).toBe("Error: Agent is busy");
+    expect(line?.role === "assistant" ? line.text : undefined).toBe("Error: Agent is busy");
+  });
+
+  it("adds an open question line", () => {
+    const next = applyExtMessage([], {
+      type: "question_asked",
+      id: "q_1",
+      question: "Which framework?",
+      options: ["axum", "actix"],
+    });
+    expect(next[0]).toEqual({
+      role: "question",
+      id: "q_1",
+      question: "Which framework?",
+      options: ["axum", "actix"],
+      answer: null,
+      settled: false,
+    });
+  });
+
+  it("settles the matching question with the answer", () => {
+    const asked = applyExtMessage([], {
+      type: "question_asked",
+      id: "q_1",
+      question: "Which framework?",
+      options: [],
+    });
+    const next = applyExtMessage(asked, {
+      type: "question_settled",
+      id: "q_1",
+      answer: "axum",
+    });
+    expect(next[0]).toMatchObject({ settled: true, answer: "axum" });
+  });
+
+  it("marks an unanswered question settled when the turn ends", () => {
+    const asked = applyExtMessage([], {
+      type: "question_asked",
+      id: "q_1",
+      question: "Which framework?",
+      options: [],
+    });
+    const next = applyExtMessage(asked, { type: "question_settled", id: "q_1", answer: null });
+    expect(next[0]).toMatchObject({ settled: true, answer: null });
+  });
+
+  it("leaves other questions alone when one settles", () => {
+    let lines = applyExtMessage([], {
+      type: "question_asked",
+      id: "q_1",
+      question: "First?",
+      options: [],
+    });
+    lines = applyExtMessage(lines, {
+      type: "question_asked",
+      id: "q_2",
+      question: "Second?",
+      options: [],
+    });
+    lines = applyExtMessage(lines, { type: "question_settled", id: "q_2", answer: "b" });
+    expect(lines[0]).toMatchObject({ id: "q_1", settled: false });
+    expect(lines[1]).toMatchObject({ id: "q_2", settled: true, answer: "b" });
   });
 
   it("ignores done", () => {

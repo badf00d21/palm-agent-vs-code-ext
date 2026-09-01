@@ -8,3 +8,4 @@ export type { FileSuggestPlan } from "./workspace/suggest.js";
 export { planFileSuggestions, SUGGEST_EXCLUDE, SUGGEST_LIMIT } from "./workspace/suggest.js";
 export type { PendingReview, ProposedFile, ReviewHost } from "./tools/review.js";
 export { mergePending } from "./tools/review.js";
+export type { QuestionHost, QuestionRequest } from "./tools/question.js";

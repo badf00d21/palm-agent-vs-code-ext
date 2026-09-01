@@ -80,6 +80,7 @@ export function createSessionHost(log?: {
       reset: () => session.reset(),
       setLastUsed: (used) => session.setLastUsed(used),
       setContextMax: (max) => session.setContextMax(max),
+      answerQuestion: (id, answer) => session.answerQuestion(id, answer),
       setSink(sink) {
         rawSink = sink;
       },

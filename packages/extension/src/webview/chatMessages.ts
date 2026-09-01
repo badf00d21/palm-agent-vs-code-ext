@@ -24,7 +24,17 @@ export interface StatusLine {
   text: string;
 }
 
-export type ChatLine = TextLine | ToolLine | ReviewLine | StatusLine;
+export interface QuestionLine {
+  role: "question";
+  id: string;
+  question: string;
+  options: string[];
+  /** The given answer once settled; null while open or if the turn ended first. */
+  answer: string | null;
+  settled: boolean;
+}
+
+export type ChatLine = TextLine | ToolLine | ReviewLine | StatusLine | QuestionLine;
 
 export function formatToolArgs(args: unknown): string {
   if (args && typeof args === "object" && "path" in args) {
@@ -99,6 +109,26 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
   if (msg.type === "diff_settled") {
     return messages.map((line) =>
       line.role === "review" && line.id === msg.id ? { ...line, status: msg.status } : line,
+    );
+  }
+  if (msg.type === "question_asked") {
+    return [
+      ...messages,
+      {
+        role: "question",
+        id: msg.id,
+        question: msg.question,
+        options: msg.options,
+        answer: null,
+        settled: false,
+      },
+    ];
+  }
+  if (msg.type === "question_settled") {
+    return messages.map((line) =>
+      line.role === "question" && line.id === msg.id
+        ? { ...line, answer: msg.answer, settled: true }
+        : line,
     );
   }
   if (msg.type === "context_trimmed") {

@@ -3,6 +3,7 @@ import { locateWorkspaceFile } from "../workspace/locate.js";
 import { toPosix } from "../workspace/paths.js";
 import type { WorkspacePort } from "../workspace/port.js";
 import { invokeEdit, invokeProposeEdit, invokeWrite } from "./propose-edit.js";
+import { invokeQuestion, type QuestionHost } from "./question.js";
 import { lineCount, sliceByLines } from "./read-range.js";
 import type { ReviewHost } from "./review.js";
 
@@ -37,8 +38,12 @@ export function toolsVisibleToModel(tools: Tool[]): Tool[] {
   return tools.filter((tool) => tool.name !== "propose_edit");
 }
 
-export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost): Tool[] {
-  return [
+export function createWorkspaceTools(
+  port: WorkspacePort,
+  reviewHost: ReviewHost,
+  questionHost?: QuestionHost,
+): Tool[] {
+  const tools: Tool[] = [
     {
       name: "read_file",
       description:
@@ -254,4 +259,30 @@ export function createWorkspaceTools(port: WorkspacePort, reviewHost: ReviewHost
       invoke: async (args) => invokeProposeEdit(args, port, reviewHost),
     },
   ];
+
+  // Only offered when the editor can actually put the question to a human.
+  if (questionHost) {
+    tools.push({
+      name: "question",
+      description:
+        "Ask the human one short question and wait for their answer. Use this only when the task cannot proceed without their decision — not to confirm work you can simply do, and never for anything a tool can find out.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "One short question" },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            description: "Up to 6 suggested answers; the human may type their own",
+          },
+        },
+        required: ["question"],
+      },
+      invoke: async (args) => invokeQuestion(args, questionHost),
+    });
+  }
+
+  return tools;
 }

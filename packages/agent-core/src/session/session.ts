@@ -11,6 +11,7 @@ import { loadWorkspaceInstructions } from "../context/instructions.js";
 import type { ModelConfig } from "../model/config.js";
 import { EditorAgent } from "../participants/editor-agent.js";
 import { UIBridge } from "../participants/ui-bridge.js";
+import type { QuestionHost } from "../tools/question.js";
 import type { ReviewHost } from "../tools/review.js";
 import { SYSTEM_PROMPT, createWorkspaceTools } from "../tools/tools.js";
 import type { WorkspacePort } from "../workspace/port.js";
@@ -29,6 +30,8 @@ export interface AgentSession {
   reset(): void;
   setLastUsed(used: number): void;
   setContextMax(max: number | null): void;
+  /** Hands the human's answer to a waiting `question` tool call. */
+  answerQuestion(id: string, answer: string): void;
 }
 
 /** Idle between tool steps. Must not run while Ollama is generating. */
@@ -95,6 +98,8 @@ export function createAgentSession(
     );
     clearIdleTimer();
     turnAbort?.abort();
+    // Unblock any tool still waiting on a human, or its promise never settles.
+    abandonQuestions();
     busy = false;
     const done = settle;
     settle = undefined;
@@ -109,7 +114,45 @@ export function createAgentSession(
     done?.(event);
   };
 
-  const tools = createWorkspaceTools(port, reviewHost);
+  /**
+   * A question is human time, not model time, so no timeout may run while one is
+   * open — the inference timer armed before the tool call would otherwise fire
+   * mid-dialog and blame Ollama for a person still reading. The timer is re-armed
+   * once the last open question is settled.
+   */
+  const openQuestions = new Map<string, (answer: string) => void>();
+  let questionSeq = 0;
+
+  const settleQuestion = (id: string, answer: string): boolean => {
+    const resolve = openQuestions.get(id);
+    if (!resolve) {
+      return false;
+    }
+    openQuestions.delete(id);
+    resolve(answer);
+    return true;
+  };
+
+  const abandonQuestions = (): void => {
+    for (const id of [...openQuestions.keys()]) {
+      settleQuestion(id, "");
+      sink({ type: "question_settled", id, answer: null });
+    }
+  };
+
+  const questionHost: QuestionHost = {
+    ask: ({ question, options }) =>
+      new Promise<string>((resolve) => {
+        questionSeq += 1;
+        const id = `q_${questionSeq}_${Math.random().toString(36).slice(2, 8)}`;
+        openQuestions.set(id, resolve);
+        clearIdleTimer();
+        trace(`question ${id} asked, ${options.length} options`);
+        sink({ type: "question_asked", id, question, options });
+      }),
+  };
+
+  const tools = createWorkspaceTools(port, reviewHost, questionHost);
   let lastUsed: number | undefined;
   let contextMax: number | null = null;
   let environment = new AgenticEnvironment();
@@ -179,6 +222,18 @@ export function createAgentSession(
         }
         lastUsed = undefined;
         rebuild();
+      },
+      answerQuestion(id: string, answer: string) {
+        if (!settleQuestion(id, answer)) {
+          trace(`question ${id} answered but no longer open`);
+          return;
+        }
+        trace(`question ${id} answered`);
+        sink({ type: "question_settled", id, answer });
+        // The model is working again, so a timeout is meaningful again.
+        if (busy && openQuestions.size === 0) {
+          bumpIdleTimer(generation);
+        }
       },
       setLastUsed(used: number) {
         lastUsed = used;

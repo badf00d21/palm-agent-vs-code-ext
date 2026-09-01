@@ -14,6 +14,7 @@ export type WebviewToExt =
   | { type: "suggest_files"; query: string }
   | { type: "get_selection" }
   | { type: "open_url"; url: string }
+  | { type: "question_answered"; id: string; answer: string }
   | { type: "new_chat" };
 
 export type ExtToWebview =
@@ -27,4 +28,6 @@ export type ExtToWebview =
   | { type: "error"; message: string }
   | { type: "context_usage"; used: number; max: number | null }
   | { type: "session_cleared" }
+  | { type: "question_asked"; id: string; question: string; options: string[] }
+  | { type: "question_settled"; id: string; answer: string | null }
   | { type: "context_trimmed" };

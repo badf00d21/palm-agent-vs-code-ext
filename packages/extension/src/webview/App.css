@@ -150,6 +150,71 @@ body {
   outline: 1px solid var(--vscode-focusBorder);
 }
 
+.bubble.question {
+  background: var(--vscode-editorWidget-background);
+  border-left: 2px solid var(--vscode-focusBorder);
+}
+
+.question-text {
+  margin: 0;
+}
+
+.question-options {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.question-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.question-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  padding: 4px 6px;
+  font: inherit;
+}
+
+.question-options button,
+.question-form button {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.question-options button:hover,
+.question-form button:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.question-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.question-options button:focus,
+.question-form button:focus,
+.question-form input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.question-answer {
+  margin: 6px 0 0;
+  opacity: 0.75;
+}
+
 .role {
   display: block;
   font-size: 11px;

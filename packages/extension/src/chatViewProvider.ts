@@ -62,6 +62,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       case "cancel":
         this.host.session.cancel();
         return;
+      case "question_answered":
+        this.host.session.answerQuestion(message.id, message.answer);
+        return;
       case "new_chat":
         this.newChat();
         return;
