@@ -27,6 +27,8 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
     search: async () => [],
     findFiles: async () => [],
     documentSymbols: async () => [],
+    references: async () => [],
+    hover: async () => "",
     exists: async () => "absent" as const,
     getContext: async () => ({ activeFile: null, selection: null }),
     ...overrides,
@@ -433,6 +435,142 @@ describe("outline", () => {
   it("is visible to the model", () => {
     const names = toolsVisibleToModel(createWorkspaceTools(fakePort(), fakeHost())).map((t) => t.name);
     expect(names).toContain("outline");
+  });
+});
+
+describe("references", () => {
+  const src = ["use crate::view;", "", "pub fn display_tasks() {}"].join("\n");
+
+  it("resolves the symbol to a position and lists uses with their source lines", async () => {
+    const asked: unknown[] = [];
+    const invoke = getInvoke(
+      "references",
+      fakePort({
+        readFile: async () => src,
+        references: async (path, at) => {
+          asked.push({ path, at });
+          return [
+            { path: "src/view.rs", line: 3, text: "pub fn display_tasks() {}" },
+            { path: "src/controller.rs", line: 18, text: "self.view.display_tasks(&tasks);" },
+          ];
+        },
+      }),
+    );
+    expect(await invoke({ path: "src/view.rs", symbol: "display_tasks" })).toBe(
+      [
+        "src/view.rs:3: pub fn display_tasks() {}",
+        "src/controller.rs:18: self.view.display_tasks(&tasks);",
+      ].join("\n"),
+    );
+    expect(asked).toEqual([{ path: "src/view.rs", at: { line: 2, character: 7 } }]);
+  });
+
+  it("uses the line from outline when the name appears earlier in a comment", async () => {
+    const withComment = ["// display_tasks does things", "", "pub fn display_tasks() {}"].join("\n");
+    const asked: unknown[] = [];
+    const invoke = getInvoke(
+      "references",
+      fakePort({
+        readFile: async () => withComment,
+        references: async (_path, at) => {
+          asked.push(at);
+          return [{ path: "a.rs", line: 3, text: "pub fn display_tasks() {}" }];
+        },
+      }),
+    );
+    await invoke({ path: "a.rs", symbol: "display_tasks", line: 3 });
+    expect(asked).toEqual([{ line: 2, character: 7 }]);
+  });
+
+  it("caps a long list", async () => {
+    const invoke = getInvoke(
+      "references",
+      fakePort({
+        readFile: async () => src,
+        references: async () =>
+          Array.from({ length: 45 }, (_, i) => ({ path: "a.rs", line: i + 1, text: "use" })),
+      }),
+    );
+    const out = await invoke({ path: "a.rs", symbol: "display_tasks" });
+    expect(out).toContain("[5 more]");
+  });
+
+  it("does not let the model read silence as an empty result", async () => {
+    const invoke = getInvoke(
+      "references",
+      fakePort({ readFile: async () => src, references: async () => [] }),
+    );
+    const out = await invoke({ path: "a.rs", symbol: "display_tasks" });
+    expect(out).toContain("No answer from language support");
+    expect(out).toContain("do not treat this as an empty result");
+  });
+
+  it("reports a symbol that is not in the file", async () => {
+    const invoke = getInvoke("references", fakePort({ readFile: async () => src }));
+    expect(await invoke({ path: "a.rs", symbol: "nope" })).toBe(
+      "Error: nope does not appear in a.rs",
+    );
+  });
+
+  it("requires a symbol", async () => {
+    const invoke = getInvoke("references", fakePort({ readFile: async () => src }));
+    expect(await invoke({ path: "a.rs" })).toBe("Error: symbol is required");
+  });
+});
+
+describe("hover", () => {
+  const src = "pub fn display_tasks() {}\n";
+
+  it("returns the provider text", async () => {
+    const invoke = getInvoke(
+      "hover",
+      fakePort({
+        readFile: async () => src,
+        hover: async () => "fn display_tasks(&self, tasks: &[Task])",
+      }),
+    );
+    expect(await invoke({ path: "a.rs", symbol: "display_tasks" })).toBe(
+      "fn display_tasks(&self, tasks: &[Task])",
+    );
+  });
+
+  it("clips a long doc comment", async () => {
+    const invoke = getInvoke(
+      "hover",
+      fakePort({ readFile: async () => src, hover: async () => "x".repeat(2000) }),
+    );
+    const out = await invoke({ path: "a.rs", symbol: "display_tasks" });
+    expect(out.endsWith("…")).toBe(true);
+    expect(out.length).toBeLessThan(1300);
+  });
+
+  it("does not let the model read silence as an answer", async () => {
+    const invoke = getInvoke(
+      "hover",
+      fakePort({ readFile: async () => src, hover: async () => "   " }),
+    );
+    expect(await invoke({ path: "a.rs", symbol: "display_tasks" })).toContain(
+      "No answer from language support",
+    );
+  });
+
+  it("feeds a provider failure back as an error", async () => {
+    const invoke = getInvoke(
+      "hover",
+      fakePort({
+        readFile: async () => src,
+        hover: async () => {
+          throw new Error("provider crashed");
+        },
+      }),
+    );
+    expect(await invoke({ path: "a.rs", symbol: "display_tasks" })).toBe("Error: provider crashed");
+  });
+
+  it("is visible to the model along with references", () => {
+    const names = toolsVisibleToModel(createWorkspaceTools(fakePort(), fakeHost())).map((t) => t.name);
+    expect(names).toContain("references");
+    expect(names).toContain("hover");
   });
 });
 

@@ -1,8 +1,14 @@
 import type { Tool } from "@mozaik-ai/core";
 import { locateWorkspaceFile } from "../workspace/locate.js";
 import { toPosix } from "../workspace/paths.js";
-import type { WorkspacePort, WorkspaceSymbol } from "../workspace/port.js";
+import type {
+  SourcePosition,
+  SymbolLocation,
+  WorkspacePort,
+  WorkspaceSymbol,
+} from "../workspace/port.js";
 import { formatSymbols, outlineByIndent } from "./outline.js";
+import { findSymbolPosition } from "./symbol-position.js";
 import { invokeEdit, invokeProposeEdit, invokeWrite } from "./propose-edit.js";
 import { invokeQuestion, type QuestionHost } from "./question.js";
 import { lineCount, sliceByLines } from "./read-range.js";
@@ -13,13 +19,53 @@ const READ_LIMIT = 24_000;
 const SEARCH_LIMIT = 50;
 /** Paths are short, but a whole tree would still crowd out the turn's real work. */
 const GLOB_LIMIT = 50;
+/** Each reference carries its source line, so these are not cheap rows. */
+const REFERENCE_LIMIT = 40;
+/** Hover can return a whole doc comment; the point of asking was to stay cheap. */
+const HOVER_LIMIT = 1200;
+
+/**
+ * Told to the model whenever a language provider answered with nothing. It has to
+ * read as "the editor cannot tell you", not as "there are none" — a model that
+ * mistakes silence for an answer will happily conclude a symbol is unused.
+ */
+const NO_LANGUAGE_SUPPORT =
+  "No answer from language support for this file. It may have no extension installed, or still be starting. Use search or read_file instead; do not treat this as an empty result.";
+
+/**
+ * Language providers work on positions while the model works in names, so the
+ * name is resolved against the file text here. Returns a message string when
+ * there is nothing to point at.
+ */
+async function locateSymbol(
+  port: WorkspacePort,
+  args: Record<string, unknown>,
+): Promise<{ path: string; at: SourcePosition } | string> {
+  const symbol = String(args.symbol ?? "").trim();
+  if (!symbol) {
+    return "Error: symbol is required";
+  }
+  const located = await locateWorkspaceFile(port, String(args.path ?? ""));
+  if ("error" in located) {
+    return `Error: ${located.error}`;
+  }
+  const preferLine =
+    args.line === undefined || args.line === null || args.line === ""
+      ? undefined
+      : Number(args.line);
+  const at = findSymbolPosition(located.text, symbol, preferLine);
+  if (!at) {
+    return `Error: ${symbol} does not appear in ${located.path}`;
+  }
+  return { path: located.path, at };
+}
 /** start_line without end_line must not dump the rest of the file into context. */
 const START_ONLY_LINE_WINDOW = 80;
 
 export const SYSTEM_PROMPT =
   "You are a coding assistant in a local workspace. Use tools to find and read code before answering. Do not invent file contents or paths. " +
   "If the user names a function, symbol, or filename without a full path: search for it (or get_context if the file is likely open). Use glob to see which files exist and search to look inside them. Never ask the human for a path or snippet you can get with tools. Facts come from tools, but intent comes from the human: if the request itself has two reasonable readings that lead to different work, call question once and wait for the answer instead of guessing or weighing the options in your reply. read_file accepts a unique filename like abc-import.ts. Before reading a file you do not know, call outline on it and then read_file only the range you need — reading whole files fills the context and leaves no room to work. After search, read_file with start_line and end_line around the hit (about 40 lines), then copy old_string from that slice (not from the [lines:] header). " +
-  "To create or change a file you MUST call the write or edit tool. That is the only way a change reaches the human. Pasting code in a ``` fence writes nothing. Never claim a file was created unless a tool result confirmed it, and never say you cannot create or edit files. " +
+  "Before you change a function, type or field that other code may use, call references on it so the change does not break callers you never looked at. To create or change a file you MUST call the write or edit tool. That is the only way a change reaches the human. Pasting code in a ``` fence writes nothing. Never claim a file was created unless a tool result confirmed it, and never say you cannot create or edit files. " +
   "write takes path and content, and creates the file or replaces it whole. Use it for new files. " +
   "edit takes path, old_string, and new_string, and replaces one literal piece of an existing file. Prefer edit for a file that already exists. old_string must be text copied exactly from read_file, long enough to appear only once (one function, or about 20-40 lines). It is literal text, never a wildcard like {[^}]*}. " +
   "One call changes one file. To create or change several files, call the tool once per file; the changes collect into a single review. " +
@@ -187,6 +233,76 @@ export function createWorkspaceTools(
         }
         // Say which view this is: the model should trust it less than symbols.
         return `${header}[no language support for this file; showing outermost lines]\n${byIndent}`;
+      },
+    },
+    {
+      name: "references",
+      description:
+        "List every place a symbol is used, across the workspace. Call this before changing a function, type or field so you know what else the change touches. Give the file the symbol is declared in.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "File where the symbol is declared" },
+          symbol: { type: "string", description: "Exact symbol name" },
+          line: { type: "integer", description: "Optional 1-based line from outline" },
+        },
+        required: ["path", "symbol"],
+      },
+      invoke: async (args) => {
+        const found = await locateSymbol(port, args);
+        if (typeof found === "string") {
+          return found;
+        }
+        let hits: SymbolLocation[];
+        try {
+          hits = await port.references(found.path, found.at);
+        } catch (error) {
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        }
+        if (hits.length === 0) {
+          return NO_LANGUAGE_SUPPORT;
+        }
+        const shown = hits.slice(0, REFERENCE_LIMIT);
+        const lines = shown.map((hit) => `${hit.path}:${hit.line}: ${hit.text}`);
+        if (hits.length > REFERENCE_LIMIT) {
+          lines.push(`[${hits.length - REFERENCE_LIMIT} more]`);
+        }
+        return lines.join("\n");
+      },
+    },
+    {
+      name: "hover",
+      description:
+        "Show the signature and documentation of a symbol without reading its file. Much cheaper than read_file when you only need to know what something is.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "File where the symbol appears" },
+          symbol: { type: "string", description: "Exact symbol name" },
+          line: { type: "integer", description: "Optional 1-based line from outline" },
+        },
+        required: ["path", "symbol"],
+      },
+      invoke: async (args) => {
+        const found = await locateSymbol(port, args);
+        if (typeof found === "string") {
+          return found;
+        }
+        let text: string;
+        try {
+          text = await port.hover(found.path, found.at);
+        } catch (error) {
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        }
+        const trimmed = text.trim();
+        if (!trimmed) {
+          return NO_LANGUAGE_SUPPORT;
+        }
+        return trimmed.length > HOVER_LIMIT ? `${trimmed.slice(0, HOVER_LIMIT)}…` : trimmed;
       },
     },
     {

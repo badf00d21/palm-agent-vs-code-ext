@@ -6,6 +6,8 @@ export type {
   DirEntry,
   EditorContext,
   SearchHit,
+  SourcePosition,
+  SymbolLocation,
   WorkspacePort,
   WorkspaceSymbol,
 } from "./workspace/port.js";

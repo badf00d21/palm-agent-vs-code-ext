@@ -29,6 +29,21 @@ export interface WorkspaceSymbol {
   depth: number;
 }
 
+/** 0-based line and character, the shape every language provider expects. */
+export interface SourcePosition {
+  line: number;
+  character: number;
+}
+
+export interface SymbolLocation {
+  /** Workspace-relative POSIX path. */
+  path: string;
+  /** 1-based. */
+  line: number;
+  /** The source line itself, so a list of references reads as evidence. */
+  text: string;
+}
+
 export interface WorkspacePort {
   hasWorkspace(): boolean;
   readFile(path: string): Promise<string>;
@@ -45,6 +60,10 @@ export interface WorkspacePort {
    * Empty when no provider handles the file — callers fall back to structure.
    */
   documentSymbols(path: string): Promise<WorkspaceSymbol[]>;
+  /** Every use of the symbol at this position, definition included. */
+  references(path: string, at: SourcePosition): Promise<SymbolLocation[]>;
+  /** Signature and docs at this position as plain text, or empty if unknown. */
+  hover(path: string, at: SourcePosition): Promise<string>;
   /** Workspace-relative POSIX path. Trailing slashes ignored. */
   exists(path: string): Promise<"file" | "dir" | "absent">;
   getContext(): Promise<EditorContext>;

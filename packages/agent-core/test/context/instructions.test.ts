@@ -20,6 +20,8 @@ function fakePort(files: Record<string, string>): WorkspacePort {
     search: async () => [],
     findFiles: async () => [],
     documentSymbols: async () => [],
+    references: async () => [],
+    hover: async () => "",
     exists: async (path) => (files[path] === undefined ? "absent" : "file"),
     getContext: async () => ({ activeFile: null, selection: null }),
   };

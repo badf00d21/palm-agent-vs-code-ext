@@ -12,6 +12,8 @@ function port(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
     search: async () => [],
     findFiles: async () => [],
     documentSymbols: async () => [],
+    references: async () => [],
+    hover: async () => "",
     exists: async () => "absent" as const,
     getContext: async () => ({ activeFile: null, selection: null }),
     ...overrides,

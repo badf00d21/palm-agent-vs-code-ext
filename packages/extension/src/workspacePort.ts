@@ -4,6 +4,8 @@ import {
   toWorkspaceRelative,
   type DirEntry,
   type EditorContext,
+  type SourcePosition,
+  type SymbolLocation,
   type WorkspacePort,
   type WorkspaceSymbol,
 } from "@palm-agent/agent-core";
@@ -12,6 +14,27 @@ import { searchWorkspace } from "./rg";
 
 function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+/** A reference is far more useful as evidence when its source line comes along. */
+async function lineTextAt(uri: vscode.Uri, line: number): Promise<string> {
+  try {
+    const doc = await vscode.workspace.openTextDocument(uri);
+    return doc.lineAt(line).text.trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Hover contents arrive as markdown or as the legacy {language, value} pair. */
+function hoverText(content: vscode.MarkdownString | vscode.MarkedString): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  if ("value" in content) {
+    return content.value;
+  }
+  return "";
 }
 
 function isDocumentSymbol(
@@ -105,6 +128,42 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
         Array<vscode.DocumentSymbol | vscode.SymbolInformation>
       >("vscode.executeDocumentSymbolProvider", uri);
       return flattenSymbols(raw ?? []);
+    },
+
+    async references(input: string, at: SourcePosition) {
+      const root = workspaceRoot();
+      if (!root) {
+        throw new Error("No workspace folder open");
+      }
+      const uri = vscode.Uri.file(resolveWorkspacePath(root, input));
+      const found = await vscode.commands.executeCommand<vscode.Location[]>(
+        "vscode.executeReferenceProvider",
+        uri,
+        new vscode.Position(at.line, at.character),
+      );
+      const out: SymbolLocation[] = [];
+      for (const location of found ?? []) {
+        out.push({
+          path: toWorkspaceRelative(root, location.uri.fsPath),
+          line: location.range.start.line + 1,
+          text: await lineTextAt(location.uri, location.range.start.line),
+        });
+      }
+      return out;
+    },
+
+    async hover(input: string, at: SourcePosition) {
+      const root = workspaceRoot();
+      if (!root) {
+        throw new Error("No workspace folder open");
+      }
+      const uri = vscode.Uri.file(resolveWorkspacePath(root, input));
+      const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+        "vscode.executeHoverProvider",
+        uri,
+        new vscode.Position(at.line, at.character),
+      );
+      return (hovers ?? []).flatMap((hover) => hover.contents.map(hoverText)).join("\n").trim();
     },
 
     async exists(input: string) {
