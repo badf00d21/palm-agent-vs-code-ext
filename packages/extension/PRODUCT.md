@@ -20,12 +20,12 @@ The long-term ceiling is Tier 2 (chat + inline edit + agent mode + indexing + ch
 
 ## Positioning
 
-The mechanism a generic chat sidebar cannot copy: the agent only **proposes** SEARCH/REPLACE; the human reviews via native `vscode.diff` and Keep All / Undo All (`WorkspaceEdit`, undo-friendly). The model loop stays in `agent-core` with no `import 'vscode'`, so the same loop can later leave the extension host.
+The mechanism a generic chat sidebar cannot copy: the agent only **proposes** SEARCH/REPLACE; the human reviews via native `vscode.diff` and Keep All / Undo All (`WorkspaceEdit`, then save). The model loop stays in `agent-core` with no `import 'vscode'`, so the same loop can later leave the extension host.
 
 ## Operating Context
 
 - VS Code sidebar webview (`palmAgent.chat`), command `agent.focus`.
-- Open workspace folder required. Tools read the workspace; writes happen only after Keep All.
+- Open workspace folder required. Tools read the workspace; Keep All applies a `WorkspaceEdit` and saves those documents so disk matches the editor (Undo All writes nothing).
 - Local models via Ollama Chat Completions (`http://localhost:11434/v1`). Do not use `gpt-*` / `o1`–`o9` / `text-*` names (wrong API).
 - Typical turn: user message (optional `@path` mention, optional editor selection) → streamed assistant prose → tool rows → optional review card → Keep / Undo / Stop.
 

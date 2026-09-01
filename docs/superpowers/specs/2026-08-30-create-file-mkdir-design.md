@@ -82,13 +82,13 @@ Path za mkdir se normalizuje sa trailing `/` u `ProposedFile.path` (POSIX). `loc
 
 ## Apply / stale
 
-**Create:** pre Keep, putanja ne postoji (ni kao fajl ni kao dir). Keep: `WorkspaceEdit.createFile` + insert `proposed`. Stale ako se pojavi na disku pre Keep.
+**Create:** pre Keep, putanja ne postoji (ni kao fajl ni kao dir). Keep: `WorkspaceEdit.createFile` + insert `proposed` + `save()`. Stale ako se pojavi na disku pre Keep.
 
 **Mkdir:** pre Keep, putanja ne postoji. Keep: `vscode.workspace.fs.createDirectory` (rekurzivno). Stale ako postoji.
 
 **Edit:** nepromenjeno (`original` mora da se poklapa sa diskom / čistim editorom).
 
-`applyFiles` u extension host-u grana po `kind`. `WorkspacePort` i dalje nema write — write ostaje samo u ext apply, kao danas.
+`applyFiles` u extension host-u grana po `kind`, pa `save()` na svaki edit/create dokument. `WorkspacePort` i dalje nema write — write ostaje samo u ext apply, kao danas.
 
 ---
 

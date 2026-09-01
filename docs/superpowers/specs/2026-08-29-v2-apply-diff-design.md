@@ -9,7 +9,7 @@
 
 ## Cilj
 
-Korisnik zamoli agenta da izmeni kod. Agent predloži SEARCH/REPLACE preko `propose_edit`. Čovek vidi jednu Cursor-like karticu (collapsible lista fajlova, **Undo All** / **Keep All** / **Review**), pregleda native `vscode.diff` na klik, pa Keep All upiše izmene kroz `WorkspaceEdit` (undo u editoru).
+Korisnik zamoli agenta da izmeni kod. Agent predloži SEARCH/REPLACE preko `propose_edit`. Čovek vidi jednu Cursor-like karticu (collapsible lista fajlova, **Undo All** / **Keep All** / **Review**), pregleda native `vscode.diff` na klik, pa Keep All upiše izmene kroz `WorkspaceEdit` i odmah sačuva te dokumente (undo u editoru i dalje radi).
 
 **Gotovo je kad važi sve ovo:**
 
@@ -51,7 +51,7 @@ propose_edit (agent-core)
        → pending (jedan)
        → sink({ type: "diff_proposed", id, files })
 open_diff  → vscode.diff(diskUri, proposedUri)
-apply_diff → ako svi disk == original → WorkspaceEdit(ceo fajl = proposed) → diff_settled kept
+apply_diff → ako svi disk == original → WorkspaceEdit(ceo fajl = proposed) → save() → diff_settled kept
 reject_diff → obriši pending → diff_settled undone
 ```
 
@@ -159,7 +159,7 @@ Jedan `PendingReview | undefined` po session-u.
 
 - `id` ≠ pending.id ili nema pending → `{ type: "error", message: "No pending review" }`.
 - Za svaki fajl: `readFile` sada. Ako bilo koji ≠ `original` → `{ type: "error", message: "File changed since proposal: <path>" }` (prvi stale path), ništa ne piši.
-- Inače: jedan `WorkspaceEdit` — za svaki path `replace` celog dokumenta sa `proposed` (otvori TextDocument ako treba, range 0–kraj). `workspace.applyEdit`. Uspeh → obriši pending, `{ type: "diff_settled", id, status: "kept" }`. Fail applyEdit → `error` sa kratkom porukom, pending ostaje.
+- Inače: jedan `WorkspaceEdit` — za svaki path `replace` celog dokumenta sa `proposed` (otvori TextDocument ako treba, range 0–kraj). `workspace.applyEdit`, zatim `TextDocument.save()` na svaki edit/create path (ne `saveAll`). Uspeh → obriši pending, `{ type: "diff_settled", id, status: "kept" }`. Fail applyEdit ili save → `error` sa kratkom porukom, pending ostaje. mkdir i dalje ide na `workspace.fs.createDirectory` (već je na disku).
 
 **Undo All (`reject_diff`):**
 
@@ -255,6 +255,7 @@ Ostali v1 tool-ovi ostaju. `propose_edit` se dodaje u `createWorkspaceTools`.
 | path nije u review | chat `error` | `File is not in the review` |
 | disk ≠ snapshot | chat `error` | `File changed since proposal: <path>` |
 | `applyEdit` fail | chat `error` | poruka iz VS Code, max 400 karaktera |
+| `save()` fail | chat `error` | `Failed to save <path>` (isti 400-char cap kroz store) |
 
 Ne logovati sadržaj fajlova.
 
@@ -272,6 +273,7 @@ Ne logovati sadržaj fajlova.
 **extension**
 
 - `src/reviewStore.ts` — pending, `merge`, apply, reject, provider sadržaja
+- `src/applyFiles.ts` — `WorkspaceEdit` + `save()` na Keep All
 - `src/sessionHost.ts` — veže store kao `ReviewHost`
 - `src/chatViewProvider.ts` — `apply_diff` / `reject_diff` / `open_diff`
 - `src/webview/App.tsx` + `chatMessages.ts` — review kartica

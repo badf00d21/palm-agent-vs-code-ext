@@ -138,12 +138,12 @@ const x = oldValue;
 
 **Applier:**
 1. Nađi `SEARCH` u fajlu — prvo exact match, pa fallback na whitespace-insensitive / fuzzy (trim + normalizacija indentacije). Ako ne nađe → vrati grešku agentu da retry-uje sa više konteksta.
-2. Sklopi `vscode.WorkspaceEdit` (ne piši u fajl direktno — `WorkspaceEdit` je undo-friendly, važno za buduće checkpoint-e).
+2. Sklopi `vscode.WorkspaceEdit` (ne piši u fajl direktno dok čovek ne da Keep All — `WorkspaceEdit` je undo-friendly, važno za buduće checkpoint-e). Keep All posle apply-a zove `save()` da disk prati editor.
 3. **Ne primenjuj odmah.** Emituj `diff_proposed` u webview.
 
 **Review UI (najjednostavniji pouzdan put):**
 - Preview: `vscode.commands.executeCommand('vscode.diff', origUri, proposedUri, 'Agent izmena')` — koristi native diff editor.
-- Accept → `vscode.workspace.applyEdit(workspaceEdit)`. Reject → odbaci.
+- Accept → `vscode.workspace.applyEdit(workspaceEdit)`, zatim `save()` na te dokumente. Reject → odbaci.
 - Kasnije nadograđuješ na per-hunk accept, ali za v2 je fajl-nivo dovoljno.
 
 Dodaj tool `propose_edit(files)` koji agent zove umesto da piše na disk. Applier je host-side; agent samo predlaže.
