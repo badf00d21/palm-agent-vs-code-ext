@@ -19,7 +19,12 @@ export interface ReviewLine {
   status: "pending" | "kept" | "undone";
 }
 
-export type ChatLine = TextLine | ToolLine | ReviewLine;
+export interface StatusLine {
+  role: "status";
+  text: string;
+}
+
+export type ChatLine = TextLine | ToolLine | ReviewLine | StatusLine;
 
 export function formatToolArgs(args: unknown): string {
   if (args && typeof args === "object" && "path" in args) {
@@ -95,6 +100,9 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
     return messages.map((line) =>
       line.role === "review" && line.id === msg.id ? { ...line, status: msg.status } : line,
     );
+  }
+  if (msg.type === "context_trimmed") {
+    return [...messages, { role: "status", text: "Context trimmed to last 3 turns" }];
   }
   return messages;
 }

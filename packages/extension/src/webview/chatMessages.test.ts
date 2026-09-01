@@ -166,4 +166,23 @@ describe("applyExtMessage", () => {
     const next = applyExtMessage(pending, { type: "diff_settled", id: "rev_1", status: "kept" });
     expect(next[0]).toMatchObject({ role: "review", status: "kept" });
   });
+
+  it("appends a status line on context_trimmed", () => {
+    const prev: ChatLine[] = [{ role: "user", text: "x" }];
+    const next = applyExtMessage(prev, { type: "context_trimmed" });
+    expect(next).toEqual([
+      { role: "user", text: "x" },
+      { role: "status", text: "Context trimmed to last 3 turns" },
+    ]);
+  });
+
+  it("ignores session_cleared in the reducer", () => {
+    const prev: ChatLine[] = [{ role: "user", text: "x" }];
+    expect(applyExtMessage(prev, { type: "session_cleared" })).toBe(prev);
+  });
+
+  it("does not clear busy on context_trimmed or session_cleared", () => {
+    expect(shouldClearBusy({ type: "context_trimmed" })).toBe(false);
+    expect(shouldClearBusy({ type: "session_cleared" })).toBe(false);
+  });
 });
