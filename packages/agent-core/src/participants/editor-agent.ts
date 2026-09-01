@@ -2,6 +2,7 @@ import {
   AgenticEnvironment,
   AgenticError,
   BaseParticipant,
+  DeveloperMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
   ModelContext,
@@ -25,11 +26,29 @@ function sliceError(error: unknown): string {
 
 const MAX_INFERENCE_STEPS = 12;
 
+/**
+ * Ollama's gemma4 tool dialect mangles arguments that carry code (braces,
+ * quotes, newlines) and then returns an empty body, so the attempt never
+ * reaches us — the turn would just die. Steer the retry to SEARCH/REPLACE
+ * markers, which arrive as ordinary text we can parse and correct even when
+ * the model gets them slightly wrong.
+ */
+const EMPTY_COMPLETION_RECOVERY =
+  "Your last reply was lost before it reached the workspace — the provider could not parse it. " +
+  "This happens when a tool call carries code. Do not call write or edit for this change. " +
+  "Instead put the change directly in your message as a block that looks exactly like this:\n" +
+  "path/to/file\n<<<<<<< SEARCH\nexact old text\n=======\nnew text\n>>>>>>> REPLACE\n" +
+  "For a new file leave the SEARCH part empty. Send only these blocks and one short sentence.";
+
+/** One nudge per turn; a second empty completion means the model is stuck. */
+const MAX_EMPTY_RECOVERIES = 1;
+
 export class EditorAgent extends BaseParticipant {
   private readonly pendingCalls = new Set<string>();
   private turnGeneration = 0;
   private signal: AbortSignal | undefined;
   private inferenceSteps = 0;
+  private emptyRecoveries = 0;
 
   constructor(
     private readonly environment: AgenticEnvironment,
@@ -51,6 +70,19 @@ export class EditorAgent extends BaseParticipant {
     this.signal = signal;
     this.pendingCalls.clear();
     this.inferenceSteps = 0;
+    this.emptyRecoveries = 0;
+  }
+
+  /** Returns true when a retry was scheduled, false to let the turn fail. */
+  private recoverFromEmptyCompletion(generation: number): boolean {
+    if (this.isStale(generation) || this.emptyRecoveries >= MAX_EMPTY_RECOVERIES) {
+      return false;
+    }
+    this.emptyRecoveries += 1;
+    this.onTrace?.("empty completion: steering to SEARCH/REPLACE and retrying");
+    this.context.addContextItem(DeveloperMessageItem.create(EMPTY_COMPLETION_RECOVERY));
+    this.run();
+    return true;
   }
 
   override onMessage(message: string): void {
@@ -199,6 +231,7 @@ export class EditorAgent extends BaseParticipant {
       signal,
       generation,
       isCurrent: () => !this.isStale(generation),
+      onEmptyCompletion: () => this.recoverFromEmptyCompletion(generation),
       onFailed: (message) => {
         if (this.isStale(generation)) {
           return;

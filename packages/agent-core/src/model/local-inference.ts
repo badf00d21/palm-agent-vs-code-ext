@@ -45,6 +45,11 @@ export interface RunLocalChatCompletionsParams {
   environment: AgenticEnvironment;
   caller: Participant;
   onFailed: (message: string) => void;
+  /**
+   * Provider returned no content and no tool calls. Return true if a recovery
+   * step was scheduled (the turn continues), false to fail the turn.
+   */
+  onEmptyCompletion?: () => boolean;
   fetchImpl?: ChatCompletionFetch;
   signal?: AbortSignal;
   generation?: number;
@@ -359,7 +364,11 @@ export async function runLocalChatCompletions(
         params.onFailed(
           "Model hit its output token limit without a usable answer. Ask again, or ask for a smaller change.",
         );
-      } else {
+      } else if (!params.onEmptyCompletion?.()) {
+        // Nothing came back and no retry was scheduled. Most often the provider
+        // dropped a tool call it could not parse (Ollama's gemma4 dialect mangles
+        // code-bearing arguments and then returns an empty body), so the text is
+        // already gone by the time we see this — there is nothing to salvage here.
         params.onFailed("Empty completion from provider");
       }
       return;

@@ -107,6 +107,58 @@ describe("EditorAgent tool failure feedback", () => {
     return body.messages.find((m) => m.role === "tool");
   }
 
+  it("steers to SEARCH/REPLACE and retries when the provider returns nothing", async () => {
+    // Ollama drops a gemma4 tool call it cannot parse and answers with an empty
+    // body; the attempt never reaches us, so the only recovery is to re-ask on a
+    // transport whose failures arrive as readable text.
+    let calls = 0;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as { messages: ChatMessage[] });
+      calls += 1;
+      const delta =
+        calls === 1
+          ? { choices: [{ delta: { content: "" }, finish_reason: "stop" }] }
+          : { choices: [{ delta: { content: "done" }, finish_reason: "stop" }] };
+      return new Response(`data: ${JSON.stringify(delta)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }) as typeof fetch;
+
+    const { agent, state } = setup([echoTool("unused")]);
+    agent.onMessage("add serde");
+
+    await vi.waitFor(() => {
+      expect(bodies).toHaveLength(2);
+    });
+    const retry = bodies[1]!.messages.filter((m) => m.role === "system").at(-1);
+    expect(retry?.content).toContain("<<<<<<< SEARCH");
+    expect(retry?.content).toContain("could not parse it");
+    expect(state.failed).toBeUndefined();
+    await vi.waitFor(() => {
+      expect(state.idle).toBe(true);
+    });
+  });
+
+  it("fails the turn when a second completion is empty too", async () => {
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as { messages: ChatMessage[] });
+      return new Response(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "" }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
+        { status: 200, headers: { "Content-Type": "text/event-stream" } },
+      );
+    }) as typeof fetch;
+
+    const { agent, state } = setup([echoTool("unused")]);
+    agent.onMessage("add serde");
+
+    await vi.waitFor(() => {
+      expect(state.failed).toBe("Empty completion from provider");
+    });
+    // Exactly one nudge: the original call plus one retry, then it gives up.
+    expect(bodies).toHaveLength(2);
+  });
+
   it("feeds an unknown tool back to the model instead of failing the turn", async () => {
     const { agent, state } = setup([echoTool("unused")]);
 
