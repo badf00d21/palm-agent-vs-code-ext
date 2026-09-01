@@ -165,4 +165,63 @@ describe("createAgentSession inference failures", () => {
     expect(session.busy).toBe(false);
     expect(events.some((e) => e.type === "error" && e.message === "Cancelled")).toBe(true);
   });
+
+  it("reset drops prior turns from the next request", async () => {
+    const bodies: Array<{ messages: Array<{ role: string; content?: string | null }> }> = [];
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content?: string | null }> });
+      const body =
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })}\n\n` +
+        "data: [DONE]\n\n";
+      return new Response(body, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }) as typeof fetch;
+
+    const session = createAgentSession(
+      fakePort(),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      () => undefined,
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+    await session.startTurn("first");
+    session.reset();
+    await session.startTurn("second");
+    const last = bodies[bodies.length - 1]!;
+    const userTexts = last.messages.filter((m) => m.role === "user").map((m) => m.content);
+    expect(userTexts).toEqual(["second"]);
+    expect(session.busy).toBe(false);
+  });
+
+  it("reset is a no-op while a turn is in flight", async () => {
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        const abort = (): void => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (init?.signal?.aborted) {
+          abort();
+          return;
+        }
+        init?.signal?.addEventListener("abort", abort, { once: true });
+      });
+    }) as typeof fetch;
+
+    const session = createAgentSession(
+      fakePort(),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      () => undefined,
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+    const running = session.startTurn("hello");
+    expect(session.busy).toBe(true);
+    session.reset();
+    expect(session.busy).toBe(true);
+    session.cancel();
+    await running;
+    expect(session.busy).toBe(false);
+  });
 });

@@ -6,6 +6,7 @@ import {
   sendMessage,
 } from "@mozaik-ai/core";
 import type { ExtToWebview } from "@palm-agent/shared";
+import type { CompactBudget } from "../context/compact.js";
 import type { ModelConfig } from "../model/config.js";
 import { EditorAgent } from "../participants/editor-agent.js";
 import { UIBridge } from "../participants/ui-bridge.js";
@@ -24,6 +25,9 @@ export interface AgentSession {
   startTurn(text: string): Promise<void>;
   cancel(): void;
   setSink(sink: SessionEventSink): void;
+  reset(): void;
+  setLastUsed(used: number): void;
+  setContextMax(max: number | null): void;
 }
 
 /** Idle between tool steps. Must not run while Ollama is generating. */
@@ -104,32 +108,59 @@ export function createAgentSession(
     done?.(event);
   };
 
-  const environment = new AgenticEnvironment();
-  const context = ModelContext.create("palm-agent");
-  context.addContextItem(DeveloperMessageItem.create(SYSTEM_PROMPT));
   const tools = createWorkspaceTools(port, reviewHost);
-  const user = new BaseParticipant();
-  const agent = new EditorAgent(
-    environment,
-    context,
-    tools,
-    config.model,
-    (fromGeneration) => finish(fromGeneration, { type: "done" }),
-    (message, fromGeneration) => finish(fromGeneration, { type: "error", message }),
-    (fromGeneration) => bumpIdleTimer(fromGeneration),
-    (fromGeneration) => bumpInferenceTimer(fromGeneration),
-    trace,
-  );
-  const ui = new UIBridge(() => sink);
+  let lastUsed: number | undefined;
+  let contextMax: number | null = null;
+  let environment = new AgenticEnvironment();
+  let context = ModelContext.create("palm-agent");
+  let user = new BaseParticipant();
+  let agent: EditorAgent;
+  let ui: UIBridge;
 
-  agent.join(environment);
-  ui.join(environment);
-  user.join(environment);
+  const getBudget = (): CompactBudget => ({ lastUsed, max: contextMax });
+
+  const rebuild = (): void => {
+    environment = new AgenticEnvironment();
+    context = ModelContext.create("palm-agent");
+    context.addContextItem(DeveloperMessageItem.create(SYSTEM_PROMPT));
+    user = new BaseParticipant();
+    agent = new EditorAgent(
+      environment,
+      context,
+      tools,
+      config.model,
+      (fromGeneration) => finish(fromGeneration, { type: "done" }),
+      (message, fromGeneration) => finish(fromGeneration, { type: "error", message }),
+      (fromGeneration) => bumpIdleTimer(fromGeneration),
+      (fromGeneration) => bumpInferenceTimer(fromGeneration),
+      trace,
+      getBudget,
+    );
+    ui = new UIBridge(() => sink);
+    agent.join(environment);
+    ui.join(environment);
+    user.join(environment);
+  };
+
+  rebuild();
 
   const session: AgentSession = {
     get busy() {
       return busy;
     },
+      reset() {
+        if (busy) {
+          return;
+        }
+        lastUsed = undefined;
+        rebuild();
+      },
+      setLastUsed(used: number) {
+        lastUsed = used;
+      },
+      setContextMax(max: number | null) {
+        contextMax = max;
+      },
       setSink(next: SessionEventSink) {
         sink = next;
       },
