@@ -159,6 +159,104 @@ describe("EditorAgent tool failure feedback", () => {
     expect(bodies).toHaveLength(2);
   });
 
+  it("blocks a third identical call and tells the model to stop repeating", async () => {
+    let ran = 0;
+    const counting: Tool = {
+      name: "read_file",
+      description: "counts invocations",
+      strict: true,
+      type: "function",
+      parameters: { type: "object", properties: {}, required: [] },
+      invoke: async () => {
+        ran += 1;
+        return "";
+      },
+    };
+    const { agent, state } = setup([counting]);
+
+    for (let i = 0; i < 4; i += 1) {
+      agent.onFunctionCall(
+        FunctionCallItem.rehydrate({
+          callId: `call_${i}`,
+          name: "read_file",
+          args: '{"path":"controller.c"}',
+        }),
+      );
+      await vi.waitFor(() => {
+        expect(bodies.length).toBeGreaterThanOrEqual(i + 1);
+      });
+    }
+
+    // Two real invocations; the rest are short-circuited before reaching the tool.
+    expect(ran).toBe(2);
+    const blocked = bodies[bodies.length - 1]!.messages.filter((m) => m.role === "tool").at(-1);
+    expect(blocked?.content).toContain("already ran 2 times this turn");
+    expect(state.failed).toBeUndefined();
+  });
+
+  it("treats the same arguments in a different key order as one call", async () => {
+    let ran = 0;
+    const counting: Tool = {
+      name: "search",
+      description: "counts invocations",
+      strict: true,
+      type: "function",
+      parameters: { type: "object", properties: {}, required: [] },
+      invoke: async () => {
+        ran += 1;
+        return "hit";
+      },
+    };
+    const { agent } = setup([counting]);
+
+    const variants = [
+      '{"query":"foo","glob":"*.ts"}',
+      '{"glob":"*.ts","query":"foo"}',
+      '{"query":"foo","glob":"*.ts"}',
+    ];
+    for (const [i, args] of variants.entries()) {
+      agent.onFunctionCall(
+        FunctionCallItem.rehydrate({ callId: `call_${i}`, name: "search", args }),
+      );
+      await vi.waitFor(() => {
+        expect(bodies.length).toBeGreaterThanOrEqual(i + 1);
+      });
+    }
+
+    expect(ran).toBe(2);
+  });
+
+  it("does not block a repeat with different arguments", async () => {
+    let ran = 0;
+    const counting: Tool = {
+      name: "read_file",
+      description: "counts invocations",
+      strict: true,
+      type: "function",
+      parameters: { type: "object", properties: {}, required: [] },
+      invoke: async () => {
+        ran += 1;
+        return "body";
+      },
+    };
+    const { agent } = setup([counting]);
+
+    for (const [i, path] of ["a.ts", "b.ts", "c.ts", "d.ts"].entries()) {
+      agent.onFunctionCall(
+        FunctionCallItem.rehydrate({
+          callId: `call_${i}`,
+          name: "read_file",
+          args: JSON.stringify({ path }),
+        }),
+      );
+      await vi.waitFor(() => {
+        expect(bodies.length).toBeGreaterThanOrEqual(i + 1);
+      });
+    }
+
+    expect(ran).toBe(4);
+  });
+
   it("feeds an unknown tool back to the model instead of failing the turn", async () => {
     const { agent, state } = setup([echoTool("unused")]);
 

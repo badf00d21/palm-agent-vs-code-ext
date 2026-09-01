@@ -43,12 +43,40 @@ const EMPTY_COMPLETION_RECOVERY =
 /** One nudge per turn; a second empty completion means the model is stuck. */
 const MAX_EMPTY_RECOVERIES = 1;
 
+/**
+ * How many times one identical call (same tool, same arguments) may actually run
+ * in a turn. Two is deliberate: re-reading a file after editing it is normal, so
+ * only the third identical call is a loop. Observed 2026-09-01, where the model
+ * called read_file on a missing path six times and burned the step budget.
+ */
+const MAX_IDENTICAL_CALLS = 2;
+
+/** Stable key for one tool call, so key order in the model's JSON does not matter. */
+function callSignature(name: string, rawArgs: string): string {
+  let args = rawArgs.trim();
+  try {
+    const parsed: unknown = args ? JSON.parse(args) : {};
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      args = JSON.stringify(
+        Object.keys(record)
+          .sort()
+          .map((key) => [key, record[key]]),
+      );
+    }
+  } catch {
+    /* unparsable args still compare fine as raw text */
+  }
+  return `${name} ${args}`;
+}
+
 export class EditorAgent extends BaseParticipant {
   private readonly pendingCalls = new Set<string>();
   private turnGeneration = 0;
   private signal: AbortSignal | undefined;
   private inferenceSteps = 0;
   private emptyRecoveries = 0;
+  private readonly callCounts = new Map<string, number>();
 
   constructor(
     private readonly environment: AgenticEnvironment,
@@ -71,6 +99,7 @@ export class EditorAgent extends BaseParticipant {
     this.pendingCalls.clear();
     this.inferenceSteps = 0;
     this.emptyRecoveries = 0;
+    this.callCounts.clear();
   }
 
   /** Returns true when a retry was scheduled, false to let the turn fail. */
@@ -181,6 +210,16 @@ export class EditorAgent extends BaseParticipant {
       const names = this.tools.map((t) => t.name).join(", ");
       return `Error: Unknown tool ${item.name}. Available tools: ${names}`;
     }
+    const signature = callSignature(item.name, item.args);
+    const ran = this.callCounts.get(signature) ?? 0;
+    if (ran >= MAX_IDENTICAL_CALLS) {
+      this.onTrace?.(`tool ${item.name} (${item.callId}) blocked: identical call ran ${ran} times`);
+      return (
+        `Error: ${item.name} already ran ${ran} times this turn with these exact arguments and the result will not change. ` +
+        "Do not repeat it. Work with the result you already have, call it with different arguments, or answer the user."
+      );
+    }
+    this.callCounts.set(signature, ran + 1);
     let args: unknown;
     try {
       args = item.args.trim() ? JSON.parse(item.args) : {};
