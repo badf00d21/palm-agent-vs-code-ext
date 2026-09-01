@@ -84,6 +84,48 @@ describe("applyExtMessage", () => {
     expect(line?.role === "assistant" ? line.text : undefined).toBe("Error: Agent is busy");
   });
 
+  it("attaches reported locations when a tool finishes", () => {
+    const running = applyExtMessage([], {
+      type: "tool_call",
+      name: "references",
+      args: { symbol: "display_tasks" },
+      id: "call_1",
+      status: "running",
+    });
+    const done = applyExtMessage(running, {
+      type: "tool_call",
+      name: "",
+      args: {},
+      id: "call_1",
+      status: "done",
+      locations: [{ path: "src/view.rs", line: 3, text: "pub fn display_tasks() {}" }],
+    });
+    expect(done[0]).toMatchObject({
+      role: "tool",
+      status: "done",
+      locations: [{ path: "src/view.rs", line: 3, text: "pub fn display_tasks() {}" }],
+    });
+  });
+
+  it("finishes a tool that reported no locations without adding the field", () => {
+    const running = applyExtMessage([], {
+      type: "tool_call",
+      name: "read_file",
+      args: { path: "a.ts" },
+      id: "call_1",
+      status: "running",
+    });
+    const done = applyExtMessage(running, {
+      type: "tool_call",
+      name: "",
+      args: {},
+      id: "call_1",
+      status: "done",
+    });
+    expect(done[0]).toMatchObject({ role: "tool", status: "done" });
+    expect((done[0] as { locations?: unknown }).locations).toBeUndefined();
+  });
+
   it("adds an open question line", () => {
     const next = applyExtMessage([], {
       type: "question_asked",

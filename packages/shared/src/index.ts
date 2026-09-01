@@ -5,6 +5,15 @@ export interface DiffFile {
 
 export type ToolCallStatus = "running" | "done";
 
+/** A place a tool reported, offered to the human as somewhere to jump. */
+export interface ToolLocation {
+  /** Workspace-relative POSIX path. */
+  path: string;
+  /** 1-based. */
+  line: number;
+  text: string;
+}
+
 export type WebviewToExt =
   | { type: "user_message"; text: string }
   | { type: "apply_diff"; id: string }
@@ -20,7 +29,15 @@ export type WebviewToExt =
 
 export type ExtToWebview =
   | { type: "assistant_delta"; text: string }
-  | { type: "tool_call"; name: string; args: unknown; id: string; status: ToolCallStatus }
+  | {
+      type: "tool_call";
+      name: string;
+      args: unknown;
+      id: string;
+      status: ToolCallStatus;
+      /** Places the tool reported; present on "done" when it found any. */
+      locations?: ToolLocation[];
+    }
   | { type: "diff_proposed"; id: string; files: DiffFile[] }
   | { type: "diff_settled"; id: string; status: "kept" | "undone" }
   | { type: "file_suggestions"; query: string; paths: string[] }

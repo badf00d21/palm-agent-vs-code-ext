@@ -262,6 +262,25 @@ export function App() {
               ) : (
                 <p>{message.text}</p>
               )}
+              {message.role === "tool" && message.locations && message.locations.length > 0 ? (
+                <ul className="tool-locations">
+                  {message.locations.map((hit) => (
+                    <li key={`${hit.path}:${hit.line}`}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          postMessage({ type: "open_location", path: hit.path, line: hit.line })
+                        }
+                      >
+                        <span className="tool-location-where">
+                          {hit.path}:{hit.line}
+                        </span>
+                        {hit.text ? <span className="tool-location-text">{hit.text}</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </article>
           ))
         )}

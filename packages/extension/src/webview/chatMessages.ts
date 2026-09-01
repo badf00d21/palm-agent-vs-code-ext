@@ -1,4 +1,4 @@
-import type { ExtToWebview } from "@palm-agent/shared";
+import type { ExtToWebview, ToolLocation } from "@palm-agent/shared";
 
 export interface TextLine {
   role: "user" | "assistant";
@@ -10,6 +10,8 @@ export interface ToolLine {
   text: string;
   id: string;
   status: "running" | "done";
+  /** Places the tool reported, taken from its result rather than the model's prose. */
+  locations?: ToolLocation[];
 }
 
 export interface ReviewLine {
@@ -81,7 +83,13 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
     const existing = messages.findIndex((line) => line.role === "tool" && line.id === msg.id);
     if (existing >= 0 && msg.status === "done") {
       return messages.map((line, index) =>
-        index === existing && line.role === "tool" ? { ...line, status: "done" } : line,
+        index === existing && line.role === "tool"
+          ? {
+              ...line,
+              status: "done" as const,
+              ...(msg.locations ? { locations: msg.locations } : {}),
+            }
+          : line,
       );
     }
     if (msg.status === "done") {

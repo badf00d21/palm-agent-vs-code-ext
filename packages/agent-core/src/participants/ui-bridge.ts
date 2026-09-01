@@ -8,6 +8,7 @@ import {
 import type { ExtToWebview } from "@palm-agent/shared";
 import { CONTEXT_TRIMMED_EVENT } from "../context/compact.js";
 import { CONTEXT_USAGE_EVENT, NARRATION_EVENT } from "../model/local-inference.js";
+import { extractToolLocations } from "./tool-locations.js";
 
 export function eventsFromFunctionCall(
   name: string,
@@ -17,8 +18,16 @@ export function eventsFromFunctionCall(
   return { type: "tool_call", name, args, id, status: "running" };
 }
 
-export function eventsFromFunctionCallOutput(id: string): ExtToWebview {
-  return { type: "tool_call", name: "", args: {}, id, status: "done" };
+export function eventsFromFunctionCallOutput(id: string, output = ""): ExtToWebview {
+  const locations = extractToolLocations(output);
+  return {
+    type: "tool_call",
+    name: "",
+    args: {},
+    id,
+    status: "done",
+    ...(locations.length > 0 ? { locations } : {}),
+  };
 }
 
 export function eventFromModelText(_text: string): ExtToWebview | null {
@@ -78,7 +87,7 @@ export class UIBridge extends BaseParticipant {
   }
 
   override onExternalFunctionCallOutput(_source: Participant, item: FunctionCallOutputItem): void {
-    this.sink()(eventsFromFunctionCallOutput(item.callId));
+    this.sink()(eventsFromFunctionCallOutput(item.callId, item.output.text));
   }
 
   override onExternalModelMessage(): void {
