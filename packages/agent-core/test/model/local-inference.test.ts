@@ -544,6 +544,38 @@ describe("runLocalChatCompletions", () => {
     });
   });
 
+  it("routes a botched fence marker into an empty propose_edit for self-correction", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const calls: FunctionCallItem[] = [];
+    const environment = fakeEnv({
+      deliverModelMessage: () => {
+        throw new Error("should not deliver the botched attempt as a model message");
+      },
+      deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
+        calls.push(item);
+      },
+    });
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context: ModelContext.create("test"),
+      tools: [],
+      environment,
+      caller: new BaseParticipant(),
+      onFailed: () => {
+        throw new Error("should not fail");
+      },
+      fetchImpl: async () =>
+        sseResponse([
+          { delta: { role: "assistant", content: "Model.h <<<<<<" }, finish_reason: "stop" },
+        ]),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.name).toBe("propose_edit");
+    expect(JSON.parse(calls[0]?.args ?? "{}")).toEqual({ files: [] });
+  });
+
   it("fails when the provider returns JSON instead of SSE", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     let delivered = false;

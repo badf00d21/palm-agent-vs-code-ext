@@ -219,9 +219,18 @@ describe("propose_edit", () => {
     expect(called).toBe(false);
   });
 
-  it("rejects empty files", async () => {
+  it("rejects empty files with format guidance", async () => {
     const invoke = getInvoke("propose_edit", fakePort());
-    expect(await invoke({ files: [] })).toBe("Error: propose_edit requires path and search");
+    const out = await invoke({ files: [] });
+    expect(out).toContain("No SEARCH/REPLACE block found");
+    expect(out).toContain("<<<<<<< SEARCH");
+  });
+
+  it("rejects a block with no path with format guidance", async () => {
+    const invoke = getInvoke("propose_edit", fakePort());
+    expect(await invoke({ files: [{ path: "  ", search: "a", replace: "b" }] })).toBe(
+      "Error: every SEARCH/REPLACE block needs a file path on the line above it",
+    );
   });
 
   it("rejects a regex search instead of file text", async () => {

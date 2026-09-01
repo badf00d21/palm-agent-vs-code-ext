@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { classifyEditBlock, parseSearchReplaceBlocks } from "../../src/tools/edit-blocks.js";
+import {
+  classifyEditBlock,
+  looksLikeMalformedEditFence,
+  parseSearchReplaceBlocks,
+} from "../../src/tools/edit-blocks.js";
 
 describe("parseSearchReplaceBlocks", () => {
   it("parses one block with a path line above SEARCH", () => {
@@ -51,6 +55,67 @@ describe("parseSearchReplaceBlocks", () => {
   it("ignores an incomplete block", () => {
     const text = ["public/audio.js", "<<<<<<< SEARCH", "old", "=======", "new"].join("\n");
     expect(parseSearchReplaceBlocks(text)).toEqual([]);
+  });
+
+  it("drops a stray closing ======= a model added to a create block", () => {
+    const text = [
+      "model.h",
+      "<<<<<<< SEARCH",
+      "=======",
+      "#pragma once",
+      "struct User {};",
+      "=======",
+      ">>>>>>> REPLACE",
+    ].join("\n");
+    expect(parseSearchReplaceBlocks(text)).toEqual([
+      { path: "model.h", search: "", replace: "#pragma once\nstruct User {};" },
+    ]);
+  });
+
+  it("drops a stray closing ======= (with a blank line after it) on an edit block", () => {
+    const text = [
+      "a.ts",
+      "<<<<<<< SEARCH",
+      "old",
+      "=======",
+      "new",
+      "=======",
+      "",
+      ">>>>>>> REPLACE",
+    ].join("\n");
+    expect(parseSearchReplaceBlocks(text)).toEqual([{ path: "a.ts", search: "old", replace: "new" }]);
+  });
+
+  it("keeps a REPLACE that does not end in a separator", () => {
+    const text = ["a.ts", "<<<<<<< SEARCH", "old", "=======", "new", ">>>>>>> REPLACE"].join("\n");
+    expect(parseSearchReplaceBlocks(text)).toEqual([{ path: "a.ts", search: "old", replace: "new" }]);
+  });
+});
+
+describe("looksLikeMalformedEditFence", () => {
+  it("detects a botched SEARCH marker after a path", () => {
+    expect(looksLikeMalformedEditFence("Model.h <<<<<<")).toBe(true);
+  });
+
+  it("detects the real SEARCH marker when the block never completes", () => {
+    expect(looksLikeMalformedEditFence("a.ts\n<<<<<<< SEARCH\nold")).toBe(true);
+  });
+
+  it("returns false when a complete block is present", () => {
+    const text = ["a.ts", "<<<<<<< SEARCH", "old", "=======", "new", ">>>>>>> REPLACE"].join("\n");
+    expect(looksLikeMalformedEditFence(text)).toBe(false);
+  });
+
+  it("does not fire on nested C++ template closers", () => {
+    expect(looksLikeMalformedEditFence("using T = vector<map<int, vector<pair<int,int>>>>;")).toBe(
+      false,
+    );
+  });
+
+  it("does not fire on ordinary prose with a fenced code block", () => {
+    expect(
+      looksLikeMalformedEditFence("Here is Model.h:\n```cpp\nstruct User {};\n```"),
+    ).toBe(false);
   });
 });
 

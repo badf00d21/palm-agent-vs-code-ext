@@ -31,8 +31,15 @@ export async function invokeProposeEdit(
       replace: String(rec.replace ?? ""),
     };
   });
-  if (blocks.length === 0 || blocks.some((b) => !b.path.trim())) {
-    return "Error: propose_edit requires path and search";
+  if (blocks.length === 0) {
+    return (
+      "Error: No SEARCH/REPLACE block found. To create or change a file, write:\n" +
+      "path/to/file\n<<<<<<< SEARCH\n=======\nnew file body\n>>>>>>> REPLACE\n" +
+      "Leave SEARCH empty for a new file. Pasting code in ``` fences writes nothing."
+    );
+  }
+  if (blocks.some((b) => !b.path.trim())) {
+    return "Error: every SEARCH/REPLACE block needs a file path on the line above it";
   }
   const classified: Array<ProposeEditBlock & { kind: EditKind }> = [];
   for (const block of blocks) {

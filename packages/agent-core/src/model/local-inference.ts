@@ -11,7 +11,7 @@ import {
   type Participant,
   type Tool,
 } from "@mozaik-ai/core";
-import { parseSearchReplaceBlocks } from "../tools/edit-blocks.js";
+import { looksLikeMalformedEditFence, parseSearchReplaceBlocks } from "../tools/edit-blocks.js";
 import { parseToolCallsFromContent, type ChatToolCall } from "./completion-parse.js";
 import { readSseChatCompletion } from "./chat-stream.js";
 
@@ -221,23 +221,36 @@ function deliverCompletion(
     params.onFailed("Empty completion from provider");
     return;
   }
+  const content = message.content ?? "";
   const nativeToolCalls = message.tool_calls ?? [];
-  const fromContent = parseToolCallsFromContent(message.content ?? "");
-  const editBlocks = parseSearchReplaceBlocks(message.content ?? "");
-  const fromFences: ChatToolCall[] =
-    fromContent.length === 0 && editBlocks.length > 0
-      ? [
-          {
-            id: `call_s${++syntheticCallCounter}`,
-            function: { name: "propose_edit", arguments: JSON.stringify({ files: editBlocks }) },
-          },
-        ]
-      : [];
+  const fromContent = parseToolCallsFromContent(content);
+  const editBlocks = parseSearchReplaceBlocks(content);
+  let fromFences: ChatToolCall[] = [];
+  if (nativeToolCalls.length === 0 && fromContent.length === 0) {
+    if (editBlocks.length > 0) {
+      fromFences = [
+        {
+          id: `call_s${++syntheticCallCounter}`,
+          function: { name: "propose_edit", arguments: JSON.stringify({ files: editBlocks }) },
+        },
+      ];
+    } else if (looksLikeMalformedEditFence(content)) {
+      // Botched markers ("Model.h <<<<<<") never parse into a block. Route them
+      // through propose_edit's empty-files error so the model gets the exact
+      // format and self-corrects, instead of the broken attempt ending the turn.
+      fromFences = [
+        {
+          id: `call_s${++syntheticCallCounter}`,
+          function: { name: "propose_edit", arguments: JSON.stringify({ files: [] }) },
+        },
+      ];
+    }
+  }
   const toolCalls =
     nativeToolCalls.length > 0 ? nativeToolCalls : fromContent.length > 0 ? fromContent : fromFences;
   const reasoning = message.reasoning_content ?? message.reasoning ?? message.thinking ?? "";
   params.trace?.(
-    `completion: content=${(message.content ?? "").length}ch reasoning=${reasoning.length}ch nativeCalls=${nativeToolCalls.length} totalCalls=${toolCalls.length} finish=${choice?.finish_reason ?? "?"}`,
+    `completion: content=${content.length}ch reasoning=${reasoning.length}ch nativeCalls=${nativeToolCalls.length} totalCalls=${toolCalls.length} finish=${choice?.finish_reason ?? "?"}`,
   );
   if (toolCalls.length > 0) {
     for (const call of toolCalls) {
@@ -250,7 +263,7 @@ function deliverCompletion(
     }
     return;
   }
-  const text = message.content ?? "";
+  const text = content;
   if (!text.trim() && choice?.finish_reason === "length") {
     params.onFailed(
       "Model hit its output token limit without a usable answer. Ask again, or ask for a smaller change.",
