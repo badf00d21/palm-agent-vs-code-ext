@@ -16,6 +16,7 @@ export interface ReviewStore {
   ): { path: string; proposed: string; kind: ProposedFile["kind"] } | { error: string };
   proposedFor(posixPath: string): string | undefined;
   onDidChangeProposed(listener: (path: string) => void): { dispose(): void };
+  clear(): void;
 }
 
 export interface ReviewStoreDeps {
@@ -146,5 +147,16 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
     return file?.proposed;
   }
 
-  return { merge, apply, reject, lookup, proposedFor, onDidChangeProposed };
+  function clear(): void {
+    if (!pending) {
+      return;
+    }
+    const formerPaths = pending.files.map((f) => f.path);
+    pending = undefined;
+    for (const path of formerPaths) {
+      notifyProposedChange(path);
+    }
+  }
+
+  return { merge, apply, reject, lookup, proposedFor, onDidChangeProposed, clear };
 }

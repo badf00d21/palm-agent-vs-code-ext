@@ -220,4 +220,25 @@ describe("createReviewStore", () => {
     store.reject("rev_1");
     expect(wrote).toBe(false);
   });
+
+  it("clear drops pending without diff_settled", async () => {
+    const events: unknown[] = [];
+    const changed: string[] = [];
+    const store = createReviewStore({
+      emit: (e) => events.push(e),
+      readFile: async () => "a",
+      exists: async () => "file",
+      applyFiles: async () => undefined,
+      createId: () => "rev_1",
+    });
+    store.onDidChangeProposed((path) => changed.push(path));
+    store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
+    events.length = 0;
+    store.clear();
+    expect(events).toEqual([]);
+    expect(changed).toEqual(["a.ts", "a.ts"]);
+    expect(await store.apply("rev_1")).toEqual({ type: "error", message: "No pending review" });
+    store.clear();
+    expect(await store.apply("rev_1")).toEqual({ type: "error", message: "No pending review" });
+  });
 });
