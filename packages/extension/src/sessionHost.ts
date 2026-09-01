@@ -22,21 +22,6 @@ export function readModelConfig(): ModelConfig {
   };
 }
 
-async function readOpenText(
-  filePath: string,
-): Promise<{ text: string; dirty: boolean } | undefined> {
-  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-  if (!root) {
-    return undefined;
-  }
-  const target = vscode.Uri.joinPath(root, filePath).toString();
-  const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === target);
-  if (!doc) {
-    return undefined;
-  }
-  return { text: doc.getText(), dirty: doc.isDirty };
-}
-
 export function createSessionHost(log?: {
   appendLine(line: string): void;
 }): { session: AgentSession; store: ReviewStore; port: WorkspacePort } {
@@ -64,10 +49,10 @@ export function createSessionHost(log?: {
   };
   const store = createReviewStore({
     emit,
+    // Buffer-aware, so the staleness check compares against what the human sees.
     readFile: (path) => port.readFile(path),
     exists: (path) => port.exists(path),
     applyFiles,
-    readOpenText,
   });
   session = createAgentSession(port, readModelConfig(), emit, store, trace);
   return {

@@ -30,7 +30,7 @@ describe("createReviewStore", () => {
     });
     store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
     const result = await store.apply("rev_1");
-    expect(result).toEqual({ type: "error", message: "File changed since proposal: a.ts" });
+    expect((result as { message: string }).message).toContain("File changed since proposal: a.ts");
     expect(wrote).toBe(false);
     expect(store.lookup("rev_1", "a.ts")).toEqual({ path: "a.ts", proposed: "b", kind: "edit" });
   });
@@ -85,40 +85,57 @@ describe("createReviewStore", () => {
     expect(changed).toEqual(["a.ts", "b.ts", "a.ts", "b.ts"]);
   });
 
-  it("treats a dirty open buffer that differs from the snapshot as stale", async () => {
+  it("refuses when what the human sees changed after the proposal", async () => {
+    // readFile reports the unsaved buffer when there is one, so this is both the
+    // "edited in the editor" and the "changed underneath us" case.
     let wrote = false;
     const store = createReviewStore({
       emit: () => undefined,
-      readFile: async () => "a",
+      readFile: async () => "edited since",
       exists: async () => "file",
       applyFiles: async () => {
         wrote = true;
       },
-      readOpenText: async () => ({ text: "edited", dirty: true }),
       createId: () => "rev_1",
     });
     store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
     const result = await store.apply("rev_1");
-    expect(result).toEqual({ type: "error", message: "File changed since proposal: a.ts" });
+    expect(result).toMatchObject({ type: "error" });
+    expect((result as { message: string }).message).toContain("File changed since proposal: a.ts");
     expect(wrote).toBe(false);
+    // The review survives, so the human can retry rather than lose the proposal.
     expect(store.lookup("rev_1", "a.ts")).toEqual({ path: "a.ts", proposed: "b", kind: "edit" });
   });
 
-  it("applies when a dirty open buffer still matches the snapshot", async () => {
+  it("applies against an unsaved buffer whose text still matches the proposal", async () => {
+    // Proposing against a dirty file and keeping it is the ordinary case now,
+    // not a conflict: the snapshot came from the same buffer.
     let wrote = false;
     const store = createReviewStore({
       emit: () => undefined,
-      readFile: async () => "a",
+      readFile: async () => "unsaved text",
       exists: async () => "file",
       applyFiles: async () => {
         wrote = true;
       },
-      readOpenText: async () => ({ text: "a", dirty: true }),
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "a.ts", original: "unsaved text", proposed: "b", kind: "edit" }]);
+    expect(await store.apply("rev_1")).toEqual({ type: "diff_settled", id: "rev_1", status: "kept" });
+    expect(wrote).toBe(true);
+  });
+
+  it("tells the human what to do when the file moved on", async () => {
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => "changed",
+      exists: async () => "file",
+      applyFiles: async () => undefined,
       createId: () => "rev_1",
     });
     store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
-    expect(await store.apply("rev_1")).toEqual({ type: "diff_settled", id: "rev_1", status: "kept" });
-    expect(wrote).toBe(true);
+    const result = await store.apply("rev_1");
+    expect((result as { message: string }).message).toContain("Ask again");
   });
 
   it("passes create kind to applyFiles and skips readFile stale", async () => {

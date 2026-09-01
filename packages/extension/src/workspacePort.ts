@@ -16,6 +16,14 @@ function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
+/** An open editor with unsaved edits; its text is what the human sees. */
+function dirtyDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+  const target = uri.toString();
+  return vscode.workspace.textDocuments.find(
+    (doc) => doc.isDirty && doc.uri.toString() === target,
+  );
+}
+
 /** A reference is far more useful as evidence when its source line comes along. */
 async function lineTextAt(uri: vscode.Uri, line: number): Promise<string> {
   try {
@@ -77,8 +85,15 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       if (!root) {
         throw new Error("No workspace folder open");
       }
-      const abs = resolveWorkspacePath(root, input);
-      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(abs));
+      const uri = vscode.Uri.file(resolveWorkspacePath(root, input));
+      // What the human is looking at, not what was last saved. Reading disk here
+      // meant the agent reasoned about stale text and then proposed an edit the
+      // apply guard had to refuse as changed.
+      const unsaved = dirtyDocument(uri);
+      if (unsaved) {
+        return unsaved.getText();
+      }
+      const bytes = await vscode.workspace.fs.readFile(uri);
       return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     },
 

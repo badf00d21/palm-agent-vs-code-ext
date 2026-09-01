@@ -26,7 +26,6 @@ export interface ReviewStoreDeps {
   applyFiles: (
     files: Array<{ path: string; proposed: string; kind: ProposedFile["kind"] }>,
   ) => Promise<void>;
-  readOpenText?: (path: string) => Promise<{ text: string; dirty: boolean } | undefined>;
   createId?: () => string;
 }
 
@@ -77,13 +76,17 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
         }
         continue;
       }
-      const open = deps.readOpenText ? await deps.readOpenText(file.path) : undefined;
-      if (open?.dirty && open.text !== file.original) {
-        return { type: "error", message: `File changed since proposal: ${file.path}` };
-      }
-      const disk = await deps.readFile(file.path);
-      if (disk !== file.original) {
-        return { type: "error", message: `File changed since proposal: ${file.path}` };
+      // readFile reports what the human currently sees -- the unsaved buffer when
+      // there is one, otherwise disk. `original` was captured the same way, so a
+      // single comparison covers an edit in the editor and a change underneath
+      // it alike. Saving an already-dirty file does not trip it, because saving
+      // does not change the text.
+      const current = await deps.readFile(file.path);
+      if (current !== file.original) {
+        return {
+          type: "error",
+          message: `File changed since proposal: ${file.path}. Ask again so the agent can re-read it.`,
+        };
       }
     }
 
