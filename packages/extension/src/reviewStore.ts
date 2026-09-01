@@ -26,6 +26,11 @@ export interface ReviewStoreDeps {
   applyFiles: (
     files: Array<{ path: string; proposed: string; kind: ProposedFile["kind"] }>,
   ) => Promise<void>;
+  /**
+   * Called with the files that just landed on disk. Not awaited: whatever it
+   * reports arrives after the review is already settled.
+   */
+  onApplied?: (paths: string[]) => void;
   createId?: () => string;
 }
 
@@ -105,6 +110,13 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
     pending = undefined;
     for (const path of formerPaths) {
       notifyProposedChange(path);
+    }
+    // A directory has nothing to analyse. Deliberately not awaited: the review
+    // is settled now, and what the language servers make of the change follows
+    // whenever they are ready.
+    const edited = active.files.filter((f) => f.kind !== "mkdir").map((f) => f.path);
+    if (edited.length > 0) {
+      deps.onApplied?.(edited);
     }
     return { type: "diff_settled", id, status: "kept" };
   }

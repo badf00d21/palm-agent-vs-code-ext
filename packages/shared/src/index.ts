@@ -46,6 +46,7 @@ export type ExtToWebview =
   | { type: "error"; message: string }
   | { type: "context_usage"; used: number; max: number | null }
   | { type: "session_cleared" }
+  | { type: "problems"; summary: string; locations: ToolLocation[] }
   | { type: "question_asked"; id: string; question: string; options: string[] }
   | { type: "question_settled"; id: string; answer: string | null }
   | { type: "context_trimmed" };

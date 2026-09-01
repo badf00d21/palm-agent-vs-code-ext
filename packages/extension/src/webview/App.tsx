@@ -262,7 +262,9 @@ export function App() {
               ) : (
                 <p>{message.text}</p>
               )}
-              {message.role === "tool" && message.locations && message.locations.length > 0 ? (
+              {(message.role === "tool" || message.role === "status") &&
+              message.locations &&
+              message.locations.length > 0 ? (
                 <ul className="tool-locations">
                   {message.locations.map((hit) => (
                     <li key={`${hit.path}:${hit.line}`}>

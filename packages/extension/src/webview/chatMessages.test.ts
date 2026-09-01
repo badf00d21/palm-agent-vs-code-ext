@@ -126,6 +126,21 @@ describe("applyExtMessage", () => {
     expect((done[0] as { locations?: unknown }).locations).toBeUndefined();
   });
 
+  it("renders problems after apply as a status line with clickable rows", () => {
+    const next = applyExtMessage([], {
+      type: "problems",
+      summary: "2 errors in the file you kept",
+      locations: [
+        { path: "src/view.rs", line: 12, text: "error: [rust-analyzer] expected &str" },
+      ],
+    });
+    expect(next[0]).toEqual({
+      role: "status",
+      text: "2 errors in the file you kept",
+      locations: [{ path: "src/view.rs", line: 12, text: "error: [rust-analyzer] expected &str" }],
+    });
+  });
+
   it("adds an open question line", () => {
     const next = applyExtMessage([], {
       type: "question_asked",

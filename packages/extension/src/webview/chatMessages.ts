@@ -24,6 +24,8 @@ export interface ReviewLine {
 export interface StatusLine {
   role: "status";
   text: string;
+  /** Present for problems reported after an apply, so each is somewhere to go. */
+  locations?: ToolLocation[];
 }
 
 export interface QuestionLine {
@@ -138,6 +140,9 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
         ? { ...line, answer: msg.answer, settled: true }
         : line,
     );
+  }
+  if (msg.type === "problems") {
+    return [...messages, { role: "status", text: msg.summary, locations: msg.locations }];
   }
   if (msg.type === "context_trimmed") {
     return [...messages, { role: "status", text: "Context trimmed to last 3 turns" }];

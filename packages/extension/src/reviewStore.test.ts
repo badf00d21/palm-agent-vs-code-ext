@@ -35,6 +35,39 @@ describe("createReviewStore", () => {
     expect(store.lookup("rev_1", "a.ts")).toEqual({ path: "a.ts", proposed: "b", kind: "edit" });
   });
 
+  it("reports the applied files so problems can be checked, skipping directories", async () => {
+    const reported: string[][] = [];
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => "a",
+      exists: async () => "absent",
+      applyFiles: async () => undefined,
+      onApplied: (paths) => reported.push(paths),
+      createId: () => "rev_1",
+    });
+    store.merge([
+      { path: "a.ts", original: "", proposed: "b", kind: "create" },
+      { path: "src/", original: "", proposed: "", kind: "mkdir" },
+    ]);
+    await store.apply("rev_1");
+    expect(reported).toEqual([["a.ts"]]);
+  });
+
+  it("does not report anything when the apply was refused", async () => {
+    const reported: string[][] = [];
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => "changed",
+      exists: async () => "file",
+      applyFiles: async () => undefined,
+      onApplied: (paths) => reported.push(paths),
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
+    await store.apply("rev_1");
+    expect(reported).toEqual([]);
+  });
+
   it("clears pending on reject", () => {
     const events: unknown[] = [];
     const store = createReviewStore({

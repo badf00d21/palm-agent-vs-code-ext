@@ -10,6 +10,7 @@ import type { ExtToWebview } from "@palm-agent/shared";
 import * as vscode from "vscode";
 import { applyFiles } from "./applyFiles";
 import { createContextWindow } from "./contextWindow";
+import { reportProblemsAfterApply } from "./problems";
 import { createReviewStore, type ReviewStore } from "./reviewStore";
 import { createVsCodeWorkspacePort } from "./workspacePort";
 
@@ -53,6 +54,9 @@ export function createSessionHost(log?: {
     readFile: (path) => port.readFile(path),
     exists: (path) => port.exists(path),
     applyFiles,
+    onApplied: (paths) => {
+      void reportProblemsAfterApply(emit, paths).catch(() => undefined);
+    },
   });
   session = createAgentSession(port, readModelConfig(), emit, store, trace);
   return {
