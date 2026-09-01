@@ -10,7 +10,14 @@ export interface ParsedLocation {
  * `src/controller.rs:18`, optionally with a column. The extension must look like
  * an extension (letters, 1-8 of them) so prose such as "ratio 3:2" is left alone.
  */
-const LOCATION_RE = /([\w.\-/\\]*[\w-]+\.[A-Za-z][A-Za-z0-9]{0,7}):(\d+)(?::\d+)?/g;
+const LOCATION_SOURCE = "([\\w.\\-/\\\\]*[\\w-]+\\.[A-Za-z][A-Za-z0-9]{0,7}):(\\d+)(?::\\d+)?";
+const LOCATION_RE = new RegExp(LOCATION_SOURCE, "g");
+/**
+ * An inline span holding nothing but a location, like `src/view.rs:3`. Wrapping
+ * a citation in backticks is the natural way to write one, so this stays a
+ * destination — unlike a fenced block, which is a code sample.
+ */
+const INLINE_LOCATION_RE = new RegExp(`^\`\\s*${LOCATION_SOURCE}\\s*\`$`);
 
 /** `http://host:8080` and `C:\dir` end in the same shape; neither is a location. */
 function looksLikeUrlOrDrive(text: string, index: number): boolean {
@@ -66,6 +73,11 @@ export function linkifyLocations(markdown: string): string {
   return splitOutCode(markdown)
     .map(({ text, code }) => {
       if (code) {
+        const only = INLINE_LOCATION_RE.exec(text);
+        if (only) {
+          // Keep the backticks inside the label so it still reads as code.
+          return `[${text}](${LOCATION_SCHEME}${only[1]}:${only[2]})`;
+        }
         return text;
       }
       return text.replace(LOCATION_RE, (whole, path: string, line: string, offset: number) => {

@@ -29,8 +29,15 @@ describe("linkifyLocations", () => {
     expect(out).toContain(`${LOCATION_SCHEME}c.ts:3`);
   });
 
-  it("leaves inline code alone", () => {
-    expect(linkifyLocations("run `main.rs:7` please")).toBe("run `main.rs:7` please");
+  it("links an inline span that is only a location, since that is a citation", () => {
+    expect(linkifyLocations("run `main.rs:7` please")).toBe(
+      "run [`main.rs:7`](" + LOCATION_SCHEME + "main.rs:7) please",
+    );
+  });
+
+  it("leaves an inline span that is real code alone", () => {
+    const md = "call `open(\"main.rs:7\")` there";
+    expect(linkifyLocations(md)).toBe(md);
   });
 
   it("does not corrupt an existing markdown link", () => {
