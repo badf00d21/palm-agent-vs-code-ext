@@ -13,7 +13,8 @@ export type WebviewToExt =
   | { type: "cancel" }
   | { type: "suggest_files"; query: string }
   | { type: "get_selection" }
-  | { type: "open_url"; url: string };
+  | { type: "open_url"; url: string }
+  | { type: "new_chat" };
 
 export type ExtToWebview =
   | { type: "assistant_delta"; text: string }
@@ -24,4 +25,6 @@ export type ExtToWebview =
   | { type: "selection"; text: string | null }
   | { type: "done" }
   | { type: "error"; message: string }
-  | { type: "context_usage"; used: number; max: number | null };
+  | { type: "context_usage"; used: number; max: number | null }
+  | { type: "session_cleared" }
+  | { type: "context_trimmed" };

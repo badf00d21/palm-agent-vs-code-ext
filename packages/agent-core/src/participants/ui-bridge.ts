@@ -6,6 +6,7 @@ import {
   type Participant,
 } from "@mozaik-ai/core";
 import type { ExtToWebview } from "@palm-agent/shared";
+import { CONTEXT_TRIMMED_EVENT } from "../context/compact.js";
 import { CONTEXT_USAGE_EVENT, NARRATION_EVENT } from "../model/local-inference.js";
 
 export function eventsFromFunctionCall(
@@ -47,6 +48,13 @@ export function eventFromContextUsage(item: SemanticEvent<unknown>): ExtToWebvie
   return { type: "context_usage", used, max: null };
 }
 
+export function eventFromContextTrimmed(item: SemanticEvent<unknown>): ExtToWebview | null {
+  if (item.getType() !== CONTEXT_TRIMMED_EVENT) {
+    return null;
+  }
+  return { type: "context_trimmed" };
+}
+
 function parseFunctionCallArgs(raw: string): unknown {
   if (!raw) {
     return {};
@@ -78,7 +86,8 @@ export class UIBridge extends BaseParticipant {
   }
 
   override onExternalEvent(_source: Participant, item: SemanticEvent<unknown>): void {
-    const event = eventFromContextUsage(item) ?? eventFromNarration(item);
+    const event =
+      eventFromContextUsage(item) ?? eventFromNarration(item) ?? eventFromContextTrimmed(item);
     if (event) {
       this.sink()(event);
     }

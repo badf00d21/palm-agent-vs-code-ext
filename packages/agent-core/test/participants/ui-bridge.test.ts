@@ -6,9 +6,11 @@ import {
 } from "@mozaik-ai/core";
 import { describe, expect, it } from "vitest";
 import type { ExtToWebview } from "@palm-agent/shared";
+import { CONTEXT_TRIMMED_EVENT } from "../../src/context/compact.js";
 import { CONTEXT_USAGE_EVENT, NARRATION_EVENT } from "../../src/model/local-inference.js";
 import {
   UIBridge,
+  eventFromContextTrimmed,
   eventFromContextUsage,
   eventFromModelText,
   eventFromNarration,
@@ -68,6 +70,16 @@ describe("UIBridge mappers", () => {
   it("ignores context_usage without a finite used", () => {
     expect(eventFromContextUsage(new SemanticEvent(CONTEXT_USAGE_EVENT, {}))).toBeNull();
   });
+
+  it("maps a context_trimmed event", () => {
+    expect(eventFromContextTrimmed(new SemanticEvent(CONTEXT_TRIMMED_EVENT, {}))).toEqual({
+      type: "context_trimmed",
+    });
+  });
+
+  it("ignores other events in eventFromContextTrimmed", () => {
+    expect(eventFromContextTrimmed(new SemanticEvent("other", {}))).toBeNull();
+  });
 });
 
 describe("UIBridge narration forwarding", () => {
@@ -89,6 +101,13 @@ describe("UIBridge narration forwarding", () => {
     const bridge = new UIBridge(() => (event) => events.push(event));
     bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent(CONTEXT_USAGE_EVENT, { used: 12 }));
     expect(events).toEqual([{ type: "context_usage", used: 12, max: null }]);
+  });
+
+  it("forwards context_trimmed through onExternalEvent to the sink", () => {
+    const events: ExtToWebview[] = [];
+    const bridge = new UIBridge(() => (event) => events.push(event));
+    bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent(CONTEXT_TRIMMED_EVENT, {}));
+    expect(events).toEqual([{ type: "context_trimmed" }]);
   });
 });
 
