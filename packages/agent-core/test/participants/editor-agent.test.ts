@@ -1,11 +1,18 @@
 import {
   AgenticEnvironment,
+  DeveloperMessageItem,
   FunctionCallItem,
+  FunctionCallOutputItem,
   ModelContext,
+  ModelMessageItem,
+  UserMessageItem,
   type Tool,
 } from "@mozaik-ai/core";
+import type { ExtToWebview } from "@palm-agent/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { STUB_TEXT } from "../../src/context/compact.js";
 import { EditorAgent } from "../../src/participants/editor-agent.js";
+import { UIBridge } from "../../src/participants/ui-bridge.js";
 
 const BASE_URL = "http://localhost:11434/v1";
 
@@ -41,10 +48,12 @@ function echoTool(output: string): Tool {
 
 function setup(tools: Tool[]) {
   const environment = new AgenticEnvironment();
+  const context = ModelContext.create("test");
+  context.addContextItem(UserMessageItem.create("test"));
   const state = { failed: undefined as string | undefined, idle: false };
   const agent = new EditorAgent(
     environment,
-    ModelContext.create("test"),
+    context,
     tools,
     "gemma4:12b",
     () => {
@@ -204,5 +213,71 @@ describe("EditorAgent tool failure feedback", () => {
     const names = (bodies[0]?.tools ?? []).map((t) => t.function?.name);
     expect(names).toContain("echo");
     expect(names).not.toContain("propose_edit");
+  });
+
+  it("stubs prior-turn tool output before the next inference", async () => {
+    const environment = new AgenticEnvironment();
+    const context = ModelContext.create("test");
+    context.addContextItem(DeveloperMessageItem.create("sys"));
+    context.addContextItem(UserMessageItem.create("first"));
+    context.addContextItem(
+      FunctionCallItem.rehydrate({ callId: "c1", name: "echo", args: "{}" }),
+    );
+    context.addContextItem(FunctionCallOutputItem.create("c1", "FILE BODY"));
+    context.addContextItem(ModelMessageItem.rehydrate({ text: "done" }));
+    const agent = new EditorAgent(
+      environment,
+      context,
+      [echoTool("x")],
+      "gemma4:12b",
+      () => undefined,
+      () => undefined,
+    );
+    agent.join(environment);
+    agent.markActive(environment);
+    agent.beginTurn(2, new AbortController().signal);
+    agent.onMessage("second");
+    await vi.waitFor(() => {
+      expect(bodies).toHaveLength(1);
+    });
+    const tool = bodies[0]?.messages.find((m) => m.role === "tool");
+    expect(tool?.content).toBe(STUB_TEXT);
+    expect(tool?.tool_call_id).toBe("c1");
+  });
+
+  it("slides to 3 user turns and emits context_trimmed", async () => {
+    const environment = new AgenticEnvironment();
+    const context = ModelContext.create("test");
+    context.addContextItem(DeveloperMessageItem.create("sys"));
+    context.addContextItem(UserMessageItem.create("t1"));
+    context.addContextItem(UserMessageItem.create("t2"));
+    context.addContextItem(UserMessageItem.create("t3"));
+    const events: ExtToWebview[] = [];
+    const agent = new EditorAgent(
+      environment,
+      context,
+      [echoTool("x")],
+      "gemma4:12b",
+      () => undefined,
+      () => undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({ lastUsed: 9000, max: 10000 }),
+    );
+    const ui = new UIBridge(() => (event) => events.push(event));
+    agent.join(environment);
+    ui.join(environment);
+    agent.markActive(environment);
+    agent.beginTurn(4, new AbortController().signal);
+    agent.onMessage("t4");
+    await vi.waitFor(() => {
+      expect(bodies).toHaveLength(1);
+    });
+    const userTexts = (bodies[0]?.messages ?? [])
+      .filter((m) => m.role === "user")
+      .map((m) => m.content);
+    expect(userTexts).toEqual(["t2", "t3", "t4"]);
+    expect(events.some((e) => e.type === "context_trimmed")).toBe(true);
   });
 });

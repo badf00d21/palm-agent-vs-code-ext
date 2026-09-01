@@ -6,9 +6,15 @@ import {
   FunctionCallOutputItem,
   ModelContext,
   ModelMessageItem,
+  SemanticEvent,
   UserMessageItem,
   type Tool,
 } from "@mozaik-ai/core";
+import {
+  compactContext,
+  CONTEXT_TRIMMED_EVENT,
+  type CompactBudget,
+} from "../context/compact.js";
 import { runLocalChatCompletions } from "../model/local-inference.js";
 import { toolsVisibleToModel } from "../tools/tools.js";
 
@@ -35,6 +41,7 @@ export class EditorAgent extends BaseParticipant {
     private readonly onActivity?: (generation: number) => void,
     private readonly onWaitForModel?: (generation: number) => void,
     private readonly onTrace?: (line: string) => void,
+    private readonly getBudget: () => CompactBudget = () => ({ max: null }),
   ) {
     super();
   }
@@ -171,6 +178,13 @@ export class EditorAgent extends BaseParticipant {
     if (this.inferenceSteps > MAX_INFERENCE_STEPS) {
       this.onFailed("Too many tool steps in one turn", generation);
       return;
+    }
+    const { trimmed } = compactContext(this.context.getItems(), this.getBudget());
+    if (trimmed) {
+      this.environment.deliverSemanticEvent(
+        this,
+        new SemanticEvent(CONTEXT_TRIMMED_EVENT, {}),
+      );
     }
     this.onTrace?.(
       `inference step ${this.inferenceSteps}/${MAX_INFERENCE_STEPS} contextItems=${this.context.getItems().length}`,
