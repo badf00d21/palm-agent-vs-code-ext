@@ -14,6 +14,7 @@ export type WebviewToExt =
   | { type: "suggest_files"; query: string }
   | { type: "get_selection" }
   | { type: "open_url"; url: string }
+  | { type: "open_location"; path: string; line: number }
   | { type: "question_answered"; id: string; answer: string }
   | { type: "new_chat" };
 

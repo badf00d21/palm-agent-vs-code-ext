@@ -255,6 +255,9 @@ export function App() {
                 <AssistantMarkdown
                   text={message.text}
                   onOpenUrl={(url) => postMessage({ type: "open_url", url })}
+                  onOpenLocation={(path, line) =>
+                    postMessage({ type: "open_location", path, line })
+                  }
                 />
               ) : (
                 <p>{message.text}</p>

@@ -21,15 +21,31 @@ describe("isPlainErrorText", () => {
 });
 
 describe("AssistantMarkdown", () => {
-  it("renders bold and a fenced code block", () => {
-    const html = renderToStaticMarkup(
+  function render(text: string): string {
+    return renderToStaticMarkup(
       createElement(AssistantMarkdown, {
-        text: "**x**\n\n```\ncode\n```",
+        text,
         onOpenUrl: () => undefined,
+        onOpenLocation: () => undefined,
       }),
     );
+  }
+
+  it("renders bold and a fenced code block", () => {
+    const html = render("**x**\n\n```\ncode\n```");
     expect(html).toContain("<strong>x</strong>");
     expect(html).toContain("<pre>");
     expect(html).toContain("code");
+  });
+
+  it("renders a mentioned location as a clickable button", () => {
+    const html = render("the call is at src/controller.rs:18 today");
+    expect(html).toContain('class="location-link"');
+    expect(html).toContain("src/controller.rs:18");
+  });
+
+  it("does not linkify a path inside a code fence", () => {
+    const html = render("```\nsrc/controller.rs:18\n```");
+    expect(html).not.toContain("location-link");
   });
 });

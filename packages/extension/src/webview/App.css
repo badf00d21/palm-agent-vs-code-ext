@@ -215,6 +215,26 @@ body {
   opacity: 0.75;
 }
 
+.location-link {
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-family: var(--vscode-editor-font-family, monospace);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.location-link:hover {
+  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+}
+
+.location-link:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
 .role {
   display: block;
   font-size: 11px;

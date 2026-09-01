@@ -62,6 +62,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       case "cancel":
         this.host.session.cancel();
         return;
+      case "open_location": {
+        const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+        if (!root) {
+          post({ type: "error", message: "No workspace folder open" });
+          return;
+        }
+        try {
+          const uri = vscode.Uri.joinPath(root, message.path);
+          const doc = await vscode.workspace.openTextDocument(uri);
+          // The model counts from 1; clamp so a stale line number still opens.
+          const line = Math.min(Math.max(message.line, 1), doc.lineCount) - 1;
+          const at = new vscode.Range(line, 0, line, 0);
+          const editor = await vscode.window.showTextDocument(doc, {
+            preview: true,
+            selection: at,
+          });
+          editor.revealRange(at, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+        } catch {
+          post({ type: "error", message: `Cannot open ${message.path}` });
+        }
+        return;
+      }
       case "question_answered":
         this.host.session.answerQuestion(message.id, message.answer);
         return;
