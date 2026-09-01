@@ -35,6 +35,77 @@ describe("createAgentSession inference failures", () => {
     globalThis.fetch = originalFetch;
   });
 
+  it("puts AGENTS.md ahead of the first user message", async () => {
+    const bodies: Array<{ messages: Array<{ role: string; content?: string | null }> }> = [];
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return sseResponse([{ delta: { content: "ok" }, finish_reason: "stop" }]);
+    }) as typeof fetch;
+
+    const session = createAgentSession(
+      fakePort({
+        exists: async (path) => (path === "AGENTS.md" ? "file" : "absent"),
+        readFile: async () => "Never use npm; this repo is pnpm only.",
+      }),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      () => undefined,
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    await session.startTurn("hello");
+
+    const messages = bodies[0]!.messages;
+    const firstUser = messages.findIndex((m) => m.role === "user");
+    const instructions = messages.findIndex((m) => m.content?.includes("pnpm only"));
+    expect(instructions).toBeGreaterThanOrEqual(0);
+    // Ahead of the first user message is exactly the region compactContext keeps.
+    expect(instructions).toBeLessThan(firstUser);
+  });
+
+  it("loads the instruction file once, not on every turn", async () => {
+    let reads = 0;
+    globalThis.fetch = (async () =>
+      sseResponse([{ delta: { content: "ok" }, finish_reason: "stop" }])) as typeof fetch;
+
+    const session = createAgentSession(
+      fakePort({
+        exists: async (path) => (path === "AGENTS.md" ? "file" : "absent"),
+        readFile: async () => {
+          reads += 1;
+          return "project rules";
+        },
+      }),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      () => undefined,
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    await session.startTurn("one");
+    await session.startTurn("two");
+    expect(reads).toBe(1);
+
+    // New chat is the refresh point: the file is read again for the new context.
+    session.reset();
+    await session.startTurn("three");
+    expect(reads).toBe(2);
+  });
+
+  it("starts a turn normally when the workspace has no instruction file", async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([{ delta: { content: "ok" }, finish_reason: "stop" }])) as typeof fetch;
+
+    const events: ExtToWebview[] = [];
+    const session = createAgentSession(
+      fakePort(),
+      { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
+      (event) => events.push(event),
+      { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+    );
+
+    await session.startTurn("hello");
+    expect(events.some((e) => e.type === "done")).toBe(true);
+  });
+
   it("settles startTurn immediately when the provider is unreachable", async () => {
     globalThis.fetch = (async () => {
       throw new TypeError("fetch failed");

@@ -7,6 +7,7 @@ import {
 } from "@mozaik-ai/core";
 import type { ExtToWebview } from "@palm-agent/shared";
 import type { CompactBudget } from "../context/compact.js";
+import { loadWorkspaceInstructions } from "../context/instructions.js";
 import type { ModelConfig } from "../model/config.js";
 import { EditorAgent } from "../participants/editor-agent.js";
 import { UIBridge } from "../participants/ui-bridge.js";
@@ -119,10 +120,34 @@ export function createAgentSession(
 
   const getBudget = (): CompactBudget => ({ lastUsed, max: contextMax });
 
+  /**
+   * Loaded lazily on the first turn of each context, not in rebuild(), because
+   * reading the file is async. New chat rebuilds the context and clears this,
+   * which doubles as the refresh point after the user edits AGENTS.md.
+   */
+  let instructionsLoaded = false;
+
+  const loadInstructionsOnce = async (): Promise<void> => {
+    if (instructionsLoaded) {
+      return;
+    }
+    instructionsLoaded = true;
+    const instructions = await loadWorkspaceInstructions(port);
+    if (!instructions) {
+      trace("instructions: none found");
+      return;
+    }
+    trace(`instructions: loaded ${instructions.length}ch`);
+    // Appended while the context still holds only SYSTEM_PROMPT, so it lands
+    // ahead of every user message — where compactContext never trims it.
+    context.addContextItem(DeveloperMessageItem.create(instructions));
+  };
+
   const rebuild = (): void => {
     environment = new AgenticEnvironment();
     context = ModelContext.create("palm-agent");
     context.addContextItem(DeveloperMessageItem.create(SYSTEM_PROMPT));
+    instructionsLoaded = false;
     user = new BaseParticipant();
     agent = new EditorAgent(
       environment,
@@ -191,6 +216,13 @@ export function createAgentSession(
       agent.markActive(environment);
       busy = true;
       bumpInferenceTimer(myGeneration);
+      // busy is already set: reading the instruction file must not open a window
+      // where cancel(), reset(), or a second startTurn think the agent is free.
+      await loadInstructionsOnce();
+      if (myGeneration !== generation || !busy) {
+        trace(`turn ${myGeneration}: abandoned while loading instructions`);
+        return;
+      }
       await new Promise<void>((resolve) => {
         settle = () => {
           resolve();
