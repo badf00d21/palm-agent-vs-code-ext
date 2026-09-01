@@ -85,10 +85,12 @@ export function createSessionHost(log?: {
     baseUrl: () => readModelConfig().baseUrl,
     model: () => readModelConfig().model,
   });
-  // Every outgoing event passes through here so the trace shows what the webview got.
+  let session!: AgentSession;
   const emit = (event: ExtToWebview): void => {
     if (event.type === "context_usage") {
+      session.setLastUsed(event.used);
       void contextWindow.attachMax(event.used).then((full) => {
+        session.setContextMax(full.max);
         trace(`event ${full.type} used=${full.used} max=${full.max ?? "null"}`);
         rawSink(full);
       });
@@ -104,7 +106,7 @@ export function createSessionHost(log?: {
     applyFiles,
     readOpenText,
   });
-  const session = createAgentSession(port, readModelConfig(), emit, store, trace);
+  session = createAgentSession(port, readModelConfig(), emit, store, trace);
   return {
     session: {
       get busy() {
@@ -112,6 +114,9 @@ export function createSessionHost(log?: {
       },
       startTurn: (text) => session.startTurn(text),
       cancel: () => session.cancel(),
+      reset: () => session.reset(),
+      setLastUsed: (used) => session.setLastUsed(used),
+      setContextMax: (max) => session.setContextMax(max),
       setSink(sink) {
         rawSink = sink;
       },
