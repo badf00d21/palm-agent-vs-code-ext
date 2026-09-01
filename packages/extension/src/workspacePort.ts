@@ -5,12 +5,44 @@ import {
   type DirEntry,
   type EditorContext,
   type WorkspacePort,
+  type WorkspaceSymbol,
 } from "@palm-agent/agent-core";
 import * as vscode from "vscode";
 import { searchWorkspace } from "./rg";
 
 function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+function isDocumentSymbol(
+  value: vscode.DocumentSymbol | vscode.SymbolInformation,
+): value is vscode.DocumentSymbol {
+  return "children" in value && "range" in value;
+}
+
+/**
+ * Providers return either the nested DocumentSymbol shape or the flat
+ * SymbolInformation one; agent-core sees one flat list either way. The kind is
+ * carried as its LSP name, so no language vocabulary leaks into the agent.
+ */
+function flattenSymbols(
+  raw: Array<vscode.DocumentSymbol | vscode.SymbolInformation>,
+  depth = 0,
+  out: WorkspaceSymbol[] = [],
+): WorkspaceSymbol[] {
+  for (const symbol of raw) {
+    const range = isDocumentSymbol(symbol) ? symbol.range : symbol.location.range;
+    out.push({
+      name: symbol.name,
+      kind: vscode.SymbolKind[symbol.kind].toLowerCase(),
+      line: range.start.line + 1,
+      depth,
+    });
+    if (isDocumentSymbol(symbol) && symbol.children.length > 0) {
+      flattenSymbols(symbol.children, depth + 1, out);
+    }
+  }
+  return out;
 }
 
 export function createVsCodeWorkspacePort(): WorkspacePort {
@@ -61,6 +93,18 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
         limit,
       );
       return uris.map((uri) => toWorkspaceRelative(root, uri.fsPath));
+    },
+
+    async documentSymbols(input: string) {
+      const root = workspaceRoot();
+      if (!root) {
+        throw new Error("No workspace folder open");
+      }
+      const uri = vscode.Uri.file(resolveWorkspacePath(root, input));
+      const raw = await vscode.commands.executeCommand<
+        Array<vscode.DocumentSymbol | vscode.SymbolInformation>
+      >("vscode.executeDocumentSymbolProvider", uri);
+      return flattenSymbols(raw ?? []);
     },
 
     async exists(input: string) {

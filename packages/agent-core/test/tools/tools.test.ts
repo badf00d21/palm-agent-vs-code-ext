@@ -26,6 +26,7 @@ function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
     listDir: async () => [],
     search: async () => [],
     findFiles: async () => [],
+    documentSymbols: async () => [],
     exists: async () => "absent" as const,
     getContext: async () => ({ activeFile: null, selection: null }),
     ...overrides,
@@ -347,6 +348,91 @@ describe("list_dir", () => {
       }),
     );
     expect(await invoke({ path: "." })).toBe("file a.ts\ndir src");
+  });
+});
+
+describe("outline", () => {
+  it("uses the editor's symbols when a language extension handles the file", async () => {
+    const invoke = getInvoke(
+      "outline",
+      fakePort({
+        readFile: async () => "irrelevant when symbols exist\n",
+        documentSymbols: async () => [
+          { name: "Task", kind: "struct", line: 12, depth: 0 },
+          { name: "new", kind: "method", line: 21, depth: 1 },
+        ],
+      }),
+    );
+    expect(await invoke({ path: "model.rs" })).toBe("12: struct Task\n21:   method new");
+  });
+
+  it("falls back to structure when nothing handles the file, and says so", async () => {
+    const invoke = getInvoke(
+      "outline",
+      fakePort({
+        readFile: async () => "widget Foo\n  slot bar\n",
+        documentSymbols: async () => [],
+      }),
+    );
+    const out = await invoke({ path: "a.unknown" });
+    expect(out).toContain("[no language support for this file; showing outermost lines]");
+    expect(out).toContain("1: widget Foo");
+  });
+
+  it("falls back rather than failing when the language server throws", async () => {
+    // A server that is missing or still starting must not break the call.
+    const invoke = getInvoke(
+      "outline",
+      fakePort({
+        readFile: async () => "alpha\n",
+        documentSymbols: async () => {
+          throw new Error("no provider registered");
+        },
+      }),
+    );
+    expect(await invoke({ path: "a.ts" })).toContain("1: alpha");
+  });
+
+  it("reports a file with no structure at all", async () => {
+    const invoke = getInvoke(
+      "outline",
+      fakePort({ readFile: async () => "\n\n}\n", documentSymbols: async () => [] }),
+    );
+    expect(await invoke({ path: "a.ts" })).toBe("[no declarations found]");
+  });
+
+  it("resolves a bare filename and reports the resolved path", async () => {
+    const invoke = getInvoke(
+      "outline",
+      fakePort({
+        readFile: async (path) => {
+          if (path === "src/view.rs") {
+            return "pub struct View;\n";
+          }
+          throw new Error(`ENOENT ${path}`);
+        },
+        findFiles: async (name) => (name === "view.rs" ? ["src/view.rs"] : []),
+        documentSymbols: async () => [],
+      }),
+    );
+    expect(await invoke({ path: "view.rs" })).toContain("[path: src/view.rs]");
+  });
+
+  it("reports a missing file as an error", async () => {
+    const invoke = getInvoke(
+      "outline",
+      fakePort({
+        readFile: async () => {
+          throw new Error("ENOENT");
+        },
+      }),
+    );
+    expect(await invoke({ path: "nope.ts" })).toMatch(/^Error: /);
+  });
+
+  it("is visible to the model", () => {
+    const names = toolsVisibleToModel(createWorkspaceTools(fakePort(), fakeHost())).map((t) => t.name);
+    expect(names).toContain("outline");
   });
 });
 

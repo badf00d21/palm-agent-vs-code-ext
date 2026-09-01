@@ -2,7 +2,13 @@ export type { ModelConfig } from "./model/config.js";
 export { DEFAULT_BASE_URL, DEFAULT_MODEL, isForbiddenModelName } from "./model/config.js";
 export type { AgentSession, SessionEventSink, SessionTrace } from "./session/session.js";
 export { createAgentSession } from "./session/session.js";
-export type { DirEntry, EditorContext, SearchHit, WorkspacePort } from "./workspace/port.js";
+export type {
+  DirEntry,
+  EditorContext,
+  SearchHit,
+  WorkspacePort,
+  WorkspaceSymbol,
+} from "./workspace/port.js";
 export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./workspace/paths.js";
 export type { FileSuggestPlan } from "./workspace/suggest.js";
 export { planFileSuggestions, SUGGEST_EXCLUDE, SUGGEST_LIMIT } from "./workspace/suggest.js";
