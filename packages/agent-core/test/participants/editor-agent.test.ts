@@ -49,6 +49,7 @@ function echoTool(output: string): Tool {
 function setup(tools: Tool[]) {
   const environment = new AgenticEnvironment();
   const context = ModelContext.create("test");
+  // A user item keeps compaction from treating every tool output as prior-turn context.
   context.addContextItem(UserMessageItem.create("test"));
   const state = { failed: undefined as string | undefined, idle: false };
   const agent = new EditorAgent(

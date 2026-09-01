@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createReviewStore } from "./reviewStore";
 
 describe("createReviewStore", () => {
@@ -240,5 +240,31 @@ describe("createReviewStore", () => {
     expect(await store.apply("rev_1")).toEqual({ type: "error", message: "No pending review" });
     store.clear();
     expect(await store.apply("rev_1")).toEqual({ type: "error", message: "No pending review" });
+  });
+
+  it("returns No pending review when clear runs while applyFiles is pending", async () => {
+    let releaseApply!: () => void;
+    let applyStarted = false;
+    const applyBlocked = new Promise<void>((resolve) => {
+      releaseApply = resolve;
+    });
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => "a",
+      exists: async () => "file",
+      applyFiles: async () => {
+        applyStarted = true;
+        await applyBlocked;
+      },
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
+    const result = store.apply("rev_1");
+    await vi.waitFor(() => {
+      expect(applyStarted).toBe(true);
+    });
+    store.clear();
+    releaseApply();
+    await expect(result).resolves.toEqual({ type: "error", message: "No pending review" });
   });
 });

@@ -10,16 +10,17 @@ vi.mock("vscode", () => ({
 function createProvider(busy = false) {
   const clear = vi.fn();
   const reset = vi.fn();
+  const session = {
+    busy,
+    reset,
+    setSink: vi.fn(),
+  };
   const provider = new ChatViewProvider({} as never, {
-    session: {
-      busy,
-      reset,
-      setSink: vi.fn(),
-    },
+    session,
     store: { clear },
     port: {},
   } as never);
-  return { provider, clear, reset };
+  return { provider, clear, reset, session };
 }
 
 describe("ChatViewProvider new chat", () => {
@@ -35,10 +36,23 @@ describe("ChatViewProvider new chat", () => {
   });
 
   it("does nothing while the session is busy", () => {
-    const { provider, clear, reset } = createProvider(true);
+    const { provider, clear, reset, session } = createProvider();
+    const postMessage = vi.fn();
+    provider.resolveWebviewView({
+      webview: {
+        options: {},
+        html: "",
+        cspSource: "test",
+        asWebviewUri: vi.fn(() => "resource"),
+        postMessage,
+        onDidReceiveMessage: vi.fn(),
+      },
+    } as never);
+    session.busy = true;
     provider.newChat();
     expect(clear).not.toHaveBeenCalled();
     expect(reset).not.toHaveBeenCalled();
+    expect(postMessage).not.toHaveBeenCalledWith({ type: "session_cleared" });
   });
 
   it("routes new_chat and posts session_cleared when resolved", async () => {
@@ -63,5 +77,10 @@ describe("ChatViewProvider new chat", () => {
     });
     expect(clear).toHaveBeenCalledOnce();
     expect(reset).toHaveBeenCalledOnce();
+    const clearOrder = clear.mock.invocationCallOrder[0]!;
+    const resetOrder = reset.mock.invocationCallOrder[0]!;
+    const postOrder = postMessage.mock.invocationCallOrder[0]!;
+    expect(clearOrder).toBeLessThan(resetOrder);
+    expect(resetOrder).toBeLessThan(postOrder);
   });
 });

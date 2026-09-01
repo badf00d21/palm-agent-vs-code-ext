@@ -54,12 +54,11 @@ export function compactContext(
     }
     items[i] = FunctionCallOutputItem.create(item.callId, STUB_TEXT);
   }
-  const afterStub = userStarts(items);
-  if (!shouldSlide(budget) || afterStub.length <= KEEP_TURNS) {
+  if (!shouldSlide(budget) || starts.length <= KEEP_TURNS) {
     return { trimmed: false };
   }
-  const keepFrom = afterStub[afterStub.length - KEEP_TURNS]!;
-  const prefixEnd = afterStub[0]!;
+  const keepFrom = starts[starts.length - KEEP_TURNS]!;
+  const prefixEnd = starts[0]!;
   items.splice(prefixEnd, keepFrom - prefixEnd);
   return { trimmed: true };
 }

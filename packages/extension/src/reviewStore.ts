@@ -67,8 +67,9 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
     if (id !== pending?.id) {
       return { type: "error", message: "No pending review" };
     }
+    const active = pending;
 
-    for (const file of pending.files) {
+    for (const file of active.files) {
       if (file.kind === "create" || file.kind === "mkdir") {
         const presence = await deps.exists(file.path);
         if (presence !== "absent") {
@@ -88,13 +89,16 @@ export function createReviewStore(deps: ReviewStoreDeps): ReviewStore {
 
     try {
       await deps.applyFiles(
-        pending.files.map((f) => ({ path: f.path, proposed: f.proposed, kind: f.kind })),
+        active.files.map((f) => ({ path: f.path, proposed: f.proposed, kind: f.kind })),
       );
     } catch (err) {
       return { type: "error", message: String(err).slice(0, 400) };
     }
 
-    const formerPaths = pending.files.map((f) => f.path);
+    if (pending !== active) {
+      return { type: "error", message: "No pending review" };
+    }
+    const formerPaths = active.files.map((f) => f.path);
     pending = undefined;
     for (const path of formerPaths) {
       notifyProposedChange(path);

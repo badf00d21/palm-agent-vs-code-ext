@@ -12,6 +12,7 @@ Javni ulaz je samo `@palm-agent/agent-core` (`src/index.ts`). Extension ne impor
 src/
   index.ts                 javni exporti
   session/                 createAgentSession, startTurn preduslovi
+  context/                 compactContext, token-budget sliding window
   participants/            EditorAgent (inference + tool loop), UIBridge (bus → ExtToWebview)
   tools/                   Mozaik tool šeme, propose_edit, matcher, mergePending
   model/                   ModelConfig, Ollama Chat Completions, JSON tool-call parser

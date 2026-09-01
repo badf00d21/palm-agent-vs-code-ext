@@ -56,6 +56,7 @@ coding-agent/
     agent-core/           # Mozaik loop, tools, model  ← seli se u fork netaknut
       src/index.ts        # javni API (nema import 'vscode')
       src/session/        # createAgentSession, startTurn guards
+      src/context/        # compactContext, token-budget sliding window
       src/participants/   # EditorAgent, UIBridge
       src/tools/          # read_file, list_dir, search, get_context, propose_edit
       src/model/          # Ollama Chat Completions + ModelConfig
