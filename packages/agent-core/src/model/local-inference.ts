@@ -60,9 +60,9 @@ export interface RunLocalChatCompletionsParams {
 /**
  * Without a cap the model may monologue until the whole num_ctx is full
  * (observed: gemma4 burned 9k tokens on "ok, do it" and returned nothing).
- * 4096 still leaves room for a large propose_edit search+replace pair.
+ * 9192 still leaves room for a large propose_edit search+replace pair.
  */
-const MAX_OUTPUT_TOKENS = 4096;
+const MAX_OUTPUT_TOKENS = 9192;
 
 interface ChatCompletionResponse {
   choices?: Array<{

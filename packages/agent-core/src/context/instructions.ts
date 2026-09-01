@@ -12,7 +12,7 @@ export const INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md"] as const;
  * 16k num_ctx a local model runs with, 8000 characters is roughly 2k tokens —
  * enough for a normal AGENTS.md, small enough to leave the turn room to work.
  */
-export const INSTRUCTIONS_CHAR_LIMIT = 8000;
+export const INSTRUCTIONS_CHAR_LIMIT = 12000;
 
 function truncationNote(name: string): string {
   return `\n[truncated: ${name} is longer than ${INSTRUCTIONS_CHAR_LIMIT} characters]`;
