@@ -303,4 +303,213 @@ describe("applyExtMessage", () => {
     expect(shouldClearBusy({ type: "context_trimmed" })).toBe(false);
     expect(shouldClearBusy({ type: "session_cleared" })).toBe(false);
   });
+
+  describe("research", () => {
+    const workers = [
+      { id: "w1", question: "What does X do?", status: "pending" as const, steps: 0 },
+      { id: "w2", question: "What does Y do?", status: "pending" as const, steps: 0 },
+    ];
+
+    it("starts a research line with all workers pending", () => {
+      const next = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "How does the system work?",
+        workers,
+      });
+      expect(next).toEqual([
+        {
+          role: "research",
+          id: "r1",
+          question: "How does the system work?",
+          workers,
+          status: "running",
+        },
+      ]);
+    });
+
+    it("replaces the matching worker by id and leaves others untouched", () => {
+      const started = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      const updated = applyExtMessage(started, {
+        type: "research_worker",
+        id: "r1",
+        worker: { id: "w1", question: "What does X do?", status: "running", activity: "read a.ts", steps: 1 },
+      });
+      const line = updated[0];
+      expect(line?.role).toBe("research");
+      if (line?.role !== "research") {
+        throw new Error("expected research line");
+      }
+      expect(line.workers).toEqual([
+        { id: "w1", question: "What does X do?", status: "running", activity: "read a.ts", steps: 1 },
+        { id: "w2", question: "What does Y do?", status: "pending", steps: 0 },
+      ]);
+    });
+
+    it("ignores a research_worker update for an unknown worker id without duplicating", () => {
+      const started = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      const updated = applyExtMessage(started, {
+        type: "research_worker",
+        id: "r1",
+        worker: { id: "unknown", question: "ghost", status: "running", steps: 0 },
+      });
+      expect(updated).toEqual(started);
+    });
+
+    it("ignores a research_worker update when the research id doesn't match", () => {
+      const started = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      const updated = applyExtMessage(started, {
+        type: "research_worker",
+        id: "other",
+        worker: { id: "w1", question: "What does X do?", status: "running", steps: 1 },
+      });
+      expect(updated).toEqual(started);
+    });
+
+    it("marks a done settle terminal and resolves lingering running/pending workers to done", () => {
+      let lines = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      lines = applyExtMessage(lines, {
+        type: "research_worker",
+        id: "r1",
+        worker: { id: "w1", question: "What does X do?", status: "running", steps: 2 },
+      });
+      lines = applyExtMessage(lines, {
+        type: "research_settled",
+        id: "r1",
+        status: "done",
+        digest: "the digest",
+      });
+      const line = lines[0];
+      if (line?.role !== "research") {
+        throw new Error("expected research line");
+      }
+      expect(line.status).toBe("done");
+      expect(line.digest).toBe("the digest");
+      expect(line.workers.every((worker) => worker.status !== "running" && worker.status !== "pending")).toBe(
+        true,
+      );
+    });
+
+    it("resolves lingering workers to failed with an error on a failed settle", () => {
+      let lines = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      lines = applyExtMessage(lines, {
+        type: "research_settled",
+        id: "r1",
+        status: "failed",
+        message: "runtime crashed",
+      });
+      const line = lines[0];
+      if (line?.role !== "research") {
+        throw new Error("expected research line");
+      }
+      expect(line.status).toBe("failed");
+      expect(line.message).toBe("runtime crashed");
+      for (const worker of line.workers) {
+        expect(worker.status).toBe("failed");
+        expect(worker.error).toBe("runtime crashed");
+      }
+    });
+
+    it("marks lingering workers cancelled-failed without clobbering a worker's own error", () => {
+      let lines = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      lines = applyExtMessage(lines, {
+        type: "research_worker",
+        id: "r1",
+        worker: { id: "w1", question: "What does X do?", status: "failed", error: "timed out", steps: 3 },
+      });
+      lines = applyExtMessage(lines, { type: "research_settled", id: "r1", status: "cancelled" });
+      const line = lines[0];
+      if (line?.role !== "research") {
+        throw new Error("expected research line");
+      }
+      expect(line.status).toBe("cancelled");
+      const w1 = line.workers.find((worker) => worker.id === "w1");
+      const w2 = line.workers.find((worker) => worker.id === "w2");
+      expect(w1?.error).toBe("timed out");
+      expect(w2?.status).toBe("failed");
+      expect(w2?.error).toBe("Cancelled");
+    });
+
+    it("does not touch other research lines or unrelated chat lines when settling", () => {
+      let lines = applyExtMessage([{ role: "user", text: "hi" }], {
+        type: "research_started",
+        id: "r1",
+        question: "q1",
+        workers,
+      });
+      lines = applyExtMessage(lines, {
+        type: "research_started",
+        id: "r2",
+        question: "q2",
+        workers,
+      });
+      lines = applyExtMessage(lines, { type: "research_settled", id: "r1", status: "done" });
+      expect(lines[0]).toEqual({ role: "user", text: "hi" });
+      const r1 = lines.find((line) => line.role === "research" && line.id === "r1");
+      const r2 = lines.find((line) => line.role === "research" && line.id === "r2");
+      expect(r1?.role === "research" ? r1.status : undefined).toBe("done");
+      expect(r2?.role === "research" ? r2.status : undefined).toBe("running");
+    });
+
+    it("does not clear busy on research events, letting the run's own rows show progress", () => {
+      expect(
+        shouldClearBusy({ type: "research_started", id: "r1", question: "q", workers }),
+      ).toBe(false);
+      expect(
+        shouldClearBusy({
+          type: "research_worker",
+          id: "r1",
+          worker: { id: "w1", question: "q", status: "running", steps: 1 },
+        }),
+      ).toBe(false);
+      expect(shouldClearBusy({ type: "research_settled", id: "r1", status: "done" })).toBe(false);
+      expect(shouldClearBusy({ type: "research_settled", id: "r1", status: "failed" })).toBe(false);
+      expect(shouldClearBusy({ type: "research_settled", id: "r1", status: "cancelled" })).toBe(
+        false,
+      );
+    });
+
+    it("interleaves cleanly with an assistant delta after settling", () => {
+      let lines = applyExtMessage([], {
+        type: "research_started",
+        id: "r1",
+        question: "q",
+        workers,
+      });
+      lines = applyExtMessage(lines, { type: "research_settled", id: "r1", status: "done" });
+      lines = applyExtMessage(lines, { type: "assistant_delta", text: "Here's what I found" });
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toEqual({ role: "assistant", text: "Here's what I found" });
+    });
+  });
 });

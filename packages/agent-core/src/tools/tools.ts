@@ -7,12 +7,14 @@ import type {
   WorkspacePort,
   WorkspaceSymbol,
 } from "../workspace/port.js";
+import { invokeDiagnostics } from "./diagnostics.js";
 import { formatSymbols, outlineByIndent } from "./outline.js";
 import { findSymbolPosition } from "./symbol-position.js";
 import { invokeEdit, invokeProposeEdit, invokeWrite } from "./propose-edit.js";
 import { invokeQuestion, type QuestionHost } from "./question.js";
 import { lineCount, sliceByLines } from "./read-range.js";
 import type { ReviewHost } from "./review.js";
+import { createWebTools } from "./web.js";
 
 /** Local models run with a 16–32k num_ctx budget; one read must not eat it. */
 const READ_LIMIT = 24_000;
@@ -360,6 +362,30 @@ export function createWorkspaceTools(
       },
     },
     {
+      name: "diagnostics",
+      description:
+        "List compiler and linter errors and warnings the editor's language servers currently report. Omit path for the whole workspace, or give a file to scope it. Use it to investigate a problem the user mentions, or to see what is already broken before you change a file. It reports the code as it stands on disk, so it will not show the effect of an edit you just proposed — the human has not applied it yet. Empty does not mean the code is clean; it can also mean no language server has checked it yet.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description:
+              "Workspace-relative path or unique filename; omit for the whole workspace",
+          },
+          severity: {
+            type: "string",
+            enum: ["error", "warning"],
+            description: "Set to error to narrow to errors only; default is errors and warnings",
+          },
+        },
+        required: [],
+      },
+      invoke: async (args) => invokeDiagnostics(args, port),
+    },
+    {
       name: "write",
       description:
         "Create a file, or replace an existing file whole, with the given content. Use this for new files. Does not write disk: the human reviews Keep All / Undo All. A path ending in / with empty content proposes a new empty directory.",
@@ -419,6 +445,8 @@ export function createWorkspaceTools(
       invoke: async (args) => invokeProposeEdit(args, port, reviewHost),
     },
   ];
+
+  tools.push(...createWebTools());
 
   // Only offered when the editor can actually put the question to a human.
   if (questionHost) {

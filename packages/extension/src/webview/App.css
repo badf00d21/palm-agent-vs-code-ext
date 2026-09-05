@@ -22,13 +22,19 @@ body {
   height: 100%;
 }
 
+/* -------------------------------------------------------------------- */
+/* Transcript                                                            */
+/* -------------------------------------------------------------------- */
+
 .messages {
   flex: 1;
   overflow: auto;
-  padding: 12px;
+  padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Generous space between turns is what reads as structure once the
+     message boxes are gone; keep spacing *within* a turn tight instead. */
+  gap: 18px;
 }
 
 .empty {
@@ -39,186 +45,84 @@ body {
   white-space: pre-line;
 }
 
-.bubble {
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--vscode-widget-border, transparent);
+.msg {
+  margin: 0;
 }
 
-.bubble.user {
-  background: var(--vscode-input-background);
+.msg p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.bubble.assistant {
-  background: var(--vscode-editor-background);
+/* User turns are the one anchor a reader needs to scan back to ("where did
+   I ask something"), so they get a quiet left rule instead of a filled
+   bubble. Everything else stays flush with the transcript edge. */
+.msg-user {
+  border-left: 2px solid var(--vscode-contrastBorder, var(--vscode-focusBorder));
+  padding-left: 12px;
 }
 
-.bubble.tool {
-  opacity: 0.75;
+/* Assistant prose is deliberately undecorated: no container, no marker, no
+   label. The absence of chrome is the assistant voice. */
+.msg-assistant {
+  padding: 0;
+}
+
+.msg-assistant.is-error p {
+  color: var(--vscode-errorForeground);
+}
+
+.msg-status {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+/* -------------------------------------------------------------------- */
+/* Tool lines: one compact, monospaced, dimmed line with a marker glyph. */
+/* -------------------------------------------------------------------- */
+
+.msg-tool {
+  color: var(--vscode-descriptionForeground);
   font-family: var(--vscode-editor-font-family);
   font-size: 12px;
 }
 
-.bubble.tool.running {
-  opacity: 0.55;
-}
-
-.bubble.review {
-  background: var(--vscode-editorWidget-background);
-}
-
-.bubble.status {
-  background: transparent;
-  opacity: 0.85;
-}
-
-.review-head,
-.review-actions {
+.tool-line {
   display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.review-actions {
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
-.review-file,
-.review-file-static {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--vscode-textLink-foreground);
-  cursor: pointer;
-  padding: 2px 0;
-  font: inherit;
-  text-align: left;
-  word-break: break-all;
-}
-
-.review-file-static {
-  color: inherit;
-  cursor: default;
-}
-
-.review-file:hover {
-  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
-}
-
-.review-list {
-  margin: 6px 0 0;
-  padding-left: 16px;
-}
-
-.review-status,
-.review-kind {
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.review-head button {
-  color: var(--vscode-foreground);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font: inherit;
-}
-
-.review-head button:hover {
-  text-decoration: underline;
-}
-
-.review-actions button {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-  border: none;
-  padding: 6px 12px;
-  cursor: pointer;
-  font: inherit;
-}
-
-.review-actions button:hover {
-  background: var(--vscode-button-hoverBackground);
-}
-
-.review-head button:focus,
-.review-actions button:focus,
-.review-file:focus {
-  outline: 1px solid var(--vscode-focusBorder);
-}
-
-.bubble.question {
-  background: var(--vscode-editorWidget-background);
-  border-left: 2px solid var(--vscode-focusBorder);
-}
-
-.question-text {
-  margin: 0;
-}
-
-.question-options {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
+  align-items: baseline;
   gap: 6px;
-  margin: 8px 0 0;
-  padding: 0;
 }
 
-.question-form {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
+.tool-marker {
+  flex: 0 0 auto;
 }
 
-.question-form input {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--vscode-input-foreground);
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  padding: 4px 6px;
-  font: inherit;
+.msg-tool.is-running {
+  animation: tool-pulse 1.6s ease-in-out infinite;
 }
 
-.question-options button,
-.question-form button {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-  border: none;
-  padding: 4px 10px;
-  cursor: pointer;
-  font: inherit;
+@keyframes tool-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
 }
 
-.question-options button:hover,
-.question-form button:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground);
-}
-
-.question-form button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.question-options button:focus,
-.question-form button:focus,
-.question-form input:focus {
-  outline: 1px solid var(--vscode-focusBorder);
-}
-
-.question-answer {
-  margin: 6px 0 0;
-  opacity: 0.75;
+@media (prefers-reduced-motion: reduce) {
+  .msg-tool.is-running {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 .tool-locations {
   list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
+  margin: 4px 0 0;
+  padding: 0 0 0 20px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -236,13 +140,14 @@ body {
   cursor: pointer;
   font: inherit;
   color: inherit;
+  border-radius: 4px;
 }
 
 .tool-locations button:hover {
   background: var(--vscode-list-hoverBackground);
 }
 
-.tool-locations button:focus {
+.tool-locations button:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
 }
 
@@ -278,77 +183,387 @@ body {
   color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
 }
 
-.location-link:focus {
+.location-link:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
 }
 
-.role {
-  display: block;
-  font-size: 11px;
-  opacity: 0.7;
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+/* -------------------------------------------------------------------- */
+/* Assistant markdown                                                    */
+/* -------------------------------------------------------------------- */
 
-.bubble p {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.bubble.error p {
-  color: var(--vscode-errorForeground);
-}
-
-.bubble.assistant .md p {
+.msg-assistant .md p {
   margin: 0 0 0.6em;
   white-space: normal;
 }
 
-.bubble.assistant .md p:last-child {
+.msg-assistant .md p:last-child {
   margin-bottom: 0;
 }
 
-.bubble.assistant .md pre {
+.msg-assistant .md pre {
   margin: 0.4em 0;
   padding: 8px;
   overflow: auto;
   font-family: var(--vscode-editor-font-family);
   font-size: 12px;
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-widget-border);
-  border-radius: 6px;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+  border-radius: 4px;
 }
 
-.bubble.assistant .md code {
+.msg-assistant .md code {
   font-family: var(--vscode-editor-font-family);
 }
 
-.bubble.assistant .md a {
+.msg-assistant .md a {
   color: var(--vscode-textLink-foreground);
 }
 
-.bubble.assistant .md ul,
-.bubble.assistant .md ol {
+.msg-assistant .md ul,
+.msg-assistant .md ol {
   margin: 0.4em 0;
   padding-left: 1.2em;
 }
 
-.bubble.assistant .md h1,
-.bubble.assistant .md h2,
-.bubble.assistant .md h3 {
+.msg-assistant .md h1,
+.msg-assistant .md h2,
+.msg-assistant .md h3 {
   font-size: inherit;
   font-weight: 600;
   margin: 0.6em 0 0.3em;
 }
+
+/* -------------------------------------------------------------------- */
+/* Cards: Review / Question / Research keep light affordance since they  */
+/* gate real actions, but stay flat — a rule or a thin border, no fill.  */
+/* -------------------------------------------------------------------- */
+
+.msg-review {
+  border: 1px solid var(--vscode-contrastBorder, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.review-head,
+.review-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.review-actions {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.review-file,
+.review-file-static {
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+  text-align: left;
+  word-break: break-all;
+}
+
+.review-file-static {
+  color: inherit;
+  cursor: default;
+  background: none;
+  border: none;
+  font: inherit;
+}
+
+.review-list {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.review-status,
+.review-kind {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.msg-question {
+  border-left: 2px solid var(--vscode-contrastBorder, var(--vscode-focusBorder));
+  padding-left: 12px;
+}
+
+.question-text {
+  margin: 0;
+}
+
+.question-options {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.question-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.question-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+  padding: 4px 6px;
+  font: inherit;
+}
+
+.question-form input:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.question-answer {
+  margin: 6px 0 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+.msg-research {
+  border-left: 2px solid var(--vscode-contrastBorder, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
+  padding-left: 12px;
+}
+
+.msg-research-failed {
+  border-left-color: var(--vscode-errorForeground);
+}
+
+.msg-research-cancelled {
+  border-left-color: var(--vscode-contrastBorder, var(--vscode-descriptionForeground));
+}
+
+.msg-research-done {
+  border-left-color: var(--vscode-terminal-ansiGreen, var(--vscode-focusBorder));
+}
+
+.research-question {
+  margin: 0;
+  font-weight: 600;
+}
+
+.research-summary {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.research-workers {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.research-worker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 3px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.research-worker-head:hover:not(:disabled) {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.research-worker-head:disabled {
+  cursor: default;
+}
+
+.research-worker-head:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.research-status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-descriptionForeground);
+}
+
+.research-status-pending {
+  background: var(--vscode-descriptionForeground);
+  opacity: 0.5;
+}
+
+.research-status-running {
+  background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+  animation: research-pulse 1.2s ease-in-out infinite;
+}
+
+.research-status-done {
+  background: var(--vscode-terminal-ansiGreen, var(--vscode-focusBorder));
+}
+
+.research-status-failed {
+  background: var(--vscode-errorForeground);
+}
+
+@keyframes research-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .research-status-running {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.research-worker-question {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-worker-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-worker-detail {
+  margin: 2px 4px 4px 20px;
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+  border-radius: 4px;
+}
+
+.research-worker-error {
+  color: var(--vscode-errorForeground);
+}
+
+.research-terminal {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.research-terminal-failed {
+  color: var(--vscode-errorForeground);
+}
+
+.research-terminal-cancelled {
+  color: var(--vscode-descriptionForeground);
+}
+
+.research-digest-toggle {
+  margin-top: 8px;
+}
+
+.research-digest {
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+  border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+}
+
+/* -------------------------------------------------------------------- */
+/* Button system — one shared set of variants used everywhere a button   */
+/* appears, instead of per-component rules that drift apart.             */
+/* -------------------------------------------------------------------- */
+
+.btn {
+  font: inherit;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-ghost {
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  padding: 2px 0;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+  text-decoration: underline;
+}
+
+/* The review header toggle reuses the ghost button's flat look but reads
+   as plain text, not a link, since it's a disclosure control rather than a
+   navigation action. */
+.review-toggle {
+  color: var(--vscode-foreground);
+}
+
+/* -------------------------------------------------------------------- */
+/* Composer                                                              */
+/* -------------------------------------------------------------------- */
 
 .composer {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-top: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-panel-border)));
 }
 
 .composer-main {
@@ -397,9 +612,13 @@ body {
   resize: none;
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
   padding: 8px;
   font: inherit;
+}
+
+.composer textarea:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
 }
 
 .suggest {
@@ -408,9 +627,9 @@ body {
   padding: 4px;
   max-height: 160px;
   overflow: auto;
-  border: 1px solid var(--vscode-widget-border, transparent);
-  background: var(--vscode-editorWidget-background);
-  border-radius: 6px;
+  border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+  background: var(--vscode-sideBar-background);
+  border-radius: 4px;
 }
 
 .suggest button {
@@ -424,6 +643,7 @@ body {
   padding: 4px 6px;
   cursor: pointer;
   word-break: break-all;
+  border-radius: 4px;
 }
 
 .suggest button[aria-selected="true"],
@@ -431,47 +651,23 @@ body {
   background: var(--vscode-list-hoverBackground);
 }
 
+.suggest button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
 .suggest-empty,
 .composer-hint {
-  opacity: 0.7;
+  color: var(--vscode-descriptionForeground);
   margin: 0 0 6px;
   font-size: 12px;
 }
 
-.composer button {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-  border: none;
-  padding: 6px 12px;
-  cursor: pointer;
-}
+/* -------------------------------------------------------------------- */
+/* Waiting indicator                                                     */
+/* -------------------------------------------------------------------- */
 
-.composer button:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground);
-}
-
-.composer button.secondary {
-  color: var(--vscode-button-secondaryForeground);
-  background: var(--vscode-button-secondaryBackground);
-}
-
-.composer button.secondary:hover:not(:disabled) {
-  background: var(--vscode-button-secondaryHoverBackground);
-}
-
-.composer button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.composer textarea:focus,
-.composer button:focus,
-.suggest button:focus {
-  outline: 1px solid var(--vscode-focusBorder);
-}
-
-.bubble.waiting {
-  opacity: 0.85;
+.is-waiting {
+  color: var(--vscode-descriptionForeground);
 }
 
 .waiting-line {
@@ -517,5 +713,48 @@ body {
   .waiting-dots span {
     animation: none;
     opacity: 0.5;
+  }
+}
+
+/* -------------------------------------------------------------------- */
+/* High-contrast themes: fills disappear under forced-colors, so         */
+/* structure has to come from real borders/outlines instead. The         */
+/* --vscode-contrastBorder fallbacks above already carry most of this;    */
+/* the rules below cover the handful of places that lean on a filled     */
+/* color (status dots, hover backgrounds) to communicate state.          */
+/* -------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .btn {
+    border: 1px solid ButtonText;
+  }
+
+  .btn-ghost {
+    border-color: transparent;
+    text-decoration: underline;
+  }
+
+  .msg-user,
+  .msg-question {
+    border-left-color: Highlight;
+  }
+
+  .msg-review,
+  .msg-research {
+    border-color: CanvasText;
+  }
+
+  .research-status-dot {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+  }
+
+  .tool-locations button:hover,
+  .research-worker-head:hover:not(:disabled),
+  .suggest button:hover,
+  .suggest button[aria-selected="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
   }
 }

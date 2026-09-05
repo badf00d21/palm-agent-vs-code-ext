@@ -26,7 +26,7 @@ The mechanism a generic chat sidebar cannot copy: the agent only **proposes** SE
 
 - VS Code sidebar webview (`palmAgent.chat`), command `agent.focus`.
 - Open workspace folder required. Tools read the workspace; Keep All applies a `WorkspaceEdit` and saves those documents so disk matches the editor (Undo All writes nothing).
-- Local models via Ollama Chat Completions (`http://localhost:11434/v1`). Do not use `gpt-*` / `o1`–`o9` / `text-*` names (wrong API).
+- Local models via Ollama Chat Completions (`http://localhost:11434/v1`). The model name is sent to the endpoint as-is.
 - Typical turn: user message (optional `@path` mention, optional editor selection) → streamed assistant prose → tool rows → optional review card → Keep / Undo / Stop.
 
 ## Capabilities and Constraints

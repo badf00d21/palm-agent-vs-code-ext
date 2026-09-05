@@ -1,4 +1,4 @@
-import type { ExtToWebview, ToolLocation } from "@palm-agent/shared";
+import type { ExtToWebview, ResearchWorker, ToolLocation } from "@palm-agent/shared";
 
 export interface TextLine {
   role: "user" | "assistant";
@@ -38,7 +38,24 @@ export interface QuestionLine {
   settled: boolean;
 }
 
-export type ChatLine = TextLine | ToolLine | ReviewLine | StatusLine | QuestionLine;
+export interface ResearchLine {
+  role: "research";
+  id: string;
+  question: string;
+  workers: ResearchWorker[];
+  /** Mirrors `research_settled`'s status; "running" while the fan-out is in flight. */
+  status: "running" | "done" | "failed" | "cancelled";
+  digest?: string;
+  message?: string;
+}
+
+export type ChatLine =
+  | TextLine
+  | ToolLine
+  | ReviewLine
+  | StatusLine
+  | QuestionLine
+  | ResearchLine;
 
 export function formatToolArgs(args: unknown): string {
   if (args && typeof args === "object" && "path" in args) {
@@ -146,6 +163,56 @@ export function applyExtMessage(messages: ChatLine[], msg: ExtToWebview): ChatLi
   }
   if (msg.type === "context_trimmed") {
     return [...messages, { role: "status", text: "Context trimmed to last 3 turns" }];
+  }
+  if (msg.type === "research_started") {
+    return [
+      ...messages,
+      {
+        role: "research",
+        id: msg.id,
+        question: msg.question,
+        workers: msg.workers,
+        status: "running",
+      },
+    ];
+  }
+  if (msg.type === "research_worker") {
+    return messages.map((line) => {
+      if (line.role !== "research" || line.id !== msg.id) {
+        return line;
+      }
+      const known = line.workers.some((worker) => worker.id === msg.worker.id);
+      if (!known) {
+        return line;
+      }
+      return {
+        ...line,
+        workers: line.workers.map((worker) => (worker.id === msg.worker.id ? msg.worker : worker)),
+      };
+    });
+  }
+  if (msg.type === "research_settled") {
+    return messages.map((line) => {
+      if (line.role !== "research" || line.id !== msg.id) {
+        return line;
+      }
+      // A worker still "pending"/"running" when the run settles has no further
+      // updates coming — resolve it now so no row spins forever.
+      const workers = line.workers.map((worker) => {
+        if (worker.status !== "pending" && worker.status !== "running") {
+          return worker;
+        }
+        if (msg.status === "done") {
+          return { ...worker, status: "done" as const };
+        }
+        return {
+          ...worker,
+          status: "failed" as const,
+          error: worker.error ?? (msg.status === "cancelled" ? "Cancelled" : msg.message ?? "Failed"),
+        };
+      });
+      return { ...line, status: msg.status, digest: msg.digest, message: msg.message, workers };
+    });
   }
   return messages;
 }

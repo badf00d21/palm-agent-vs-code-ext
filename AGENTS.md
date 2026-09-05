@@ -24,7 +24,7 @@ Ovo su odluke donete namerno — ne preispituj ih bez razloga, gradi na njima.
 3. **`agent-core` je čist od editora.** Nijedan `import 'vscode'` u tom paketu. To je jedini deo koji preživljava prelazak na fork; komunicira sa editorom preko tool callback-ova, ne direktno.
 4. **Agent u ext host-u za v0–v4**, pa ekstrakcija u zaseban Node proces (JSON-RPC preko stdio) u v5. Ne komplikuj sa IPC-om dok loop ne radi.
 5. **Edit format: SEARCH/REPLACE blokovi.** Applier → `vscode.WorkspaceEdit` (undo-friendly) → `TextDocument.save()` na Keep All → preview kroz native `vscode.diff` → accept/reject. **Ne** unified diff (LLM-ovi ga lošije proizvode).
-6. **Modeli preko OpenAI-kompatibilnog sloja.** Mozaik bira providera po imenu modela. Za **lokalne** modele gađaj **Chat Completions** endpoint i izbegavaj `gpt-*`/`o1`–`o9`/`text-*` imena (inače runner rutira na Responses API — pogrešan protokol). Brz lokalni model u VRAM-u za interaktivnu petlju; jak (RAM MoE ili cloud) za teško planiranje.
+6. **Modeli preko OpenAI-kompatibilnog sloja.** Jezgro ne koristi Mozaikov routing po imenu modela — `runLocalChatCompletions` sam gađa `${OPENAI_BASE_URL}/chat/completions`, pa ime modela ide endpoint-u kakvo jeste (bez filtera). Brz lokalni model u VRAM-u za interaktivnu petlju; jak (RAM MoE ili cloud) za teško planiranje.
 7. **Van opsega dok jezgro ne radi:** codebase indexing/embeddings, multi-agent, autocomplete/Tab, MCP, git checkpoints.
 
 ---

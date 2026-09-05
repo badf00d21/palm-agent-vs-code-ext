@@ -37,7 +37,7 @@ export function QuestionCard({ message, postMessage }: QuestionCardProps) {
         <ul className="question-options">
           {message.options.map((option) => (
             <li key={option}>
-              <button type="button" onClick={() => answer(option)}>
+              <button type="button" className="btn btn-secondary" onClick={() => answer(option)}>
                 {option}
               </button>
             </li>
@@ -59,7 +59,7 @@ export function QuestionCard({ message, postMessage }: QuestionCardProps) {
           placeholder={message.options.length > 0 ? "Or type an answer" : "Your answer"}
           onChange={(event) => setDraft(event.target.value)}
         />
-        <button type="submit" disabled={draft.trim().length === 0}>
+        <button type="submit" className="btn btn-primary" disabled={draft.trim().length === 0}>
           Answer
         </button>
       </form>

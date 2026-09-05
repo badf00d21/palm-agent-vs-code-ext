@@ -1,5 +1,5 @@
 export type { ModelConfig } from "./model/config.js";
-export { DEFAULT_BASE_URL, DEFAULT_MODEL, isForbiddenModelName } from "./model/config.js";
+export { DEFAULT_BASE_URL, DEFAULT_MODEL } from "./model/config.js";
 export type {
   AgentSession,
   CreateSessionOptions,
@@ -8,6 +8,8 @@ export type {
 } from "./session/session.js";
 export { createAgentSession } from "./session/session.js";
 export type {
+  Diagnostic,
+  DiagnosticSeverity,
   DirEntry,
   EditorContext,
   SearchHit,

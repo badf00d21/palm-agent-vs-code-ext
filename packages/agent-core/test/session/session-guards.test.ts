@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertCanStartTurn } from "../../src/session/session-guards.js";
 
-const ok = { busy: false, hasWorkspace: true, model: "gemma4:12b" };
+const ok = { busy: false, hasWorkspace: true };
 
 describe("assertCanStartTurn", () => {
   it("rejects empty text", () => {
@@ -22,14 +22,6 @@ describe("assertCanStartTurn", () => {
     expect(assertCanStartTurn("hi", { ...ok, hasWorkspace: false })).toEqual({
       type: "error",
       message: "No workspace folder open",
-    });
-  });
-
-  it("rejects a Responses-API model name", () => {
-    expect(assertCanStartTurn("hi", { ...ok, model: "gpt-4" })).toEqual({
-      type: "error",
-      message:
-        "Model name routes to the wrong API. Use a local Ollama name such as gemma4:12b.",
     });
   });
 

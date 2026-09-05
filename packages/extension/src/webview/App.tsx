@@ -4,6 +4,7 @@ import { applyExtMessage, shouldClearBusy, type ChatLine } from "./chatMessages"
 import { contextRingRatio, formatContextTooltip } from "./contextMeter";
 import { AssistantMarkdown, isPlainErrorText } from "./markdown";
 import { QuestionCard } from "./QuestionCard";
+import { ResearchCard } from "./ResearchCard";
 import { ReviewCard } from "./ReviewCard";
 import { getVsCodeApi } from "./vscode";
 
@@ -22,6 +23,9 @@ function roleLabel(role: ChatLine["role"]): string {
   }
   if (role === "question") {
     return "Question";
+  }
+  if (role === "research") {
+    return "Research";
   }
   return "Agent";
 }
@@ -218,6 +222,12 @@ export function App() {
   // under it would claim the agent is thinking when it is waiting on a person.
   const awaitingAnswer = messages.some((line) => line.role === "question" && !line.settled);
 
+  // A running research line already shows per-worker progress; stacking the
+  // generic "waiting for reply" bubble under it would be redundant, not
+  // reassuring.
+  const lastLine = messages[messages.length - 1];
+  const researchInFlight = lastLine?.role === "research" && lastLine.status === "running";
+
   const shownSuggestions =
     suggestQuery && suggestQuery.length > 0
       ? suggestions.filter((path) => path.toLowerCase().includes(suggestQuery.toLowerCase()))
@@ -240,17 +250,19 @@ export function App() {
           messages.map((message, index) => (
             <article
               key={
-                message.role === "review" || message.role === "question"
+                message.role === "review" || message.role === "question" || message.role === "research"
                   ? message.id
                   : `${message.role}-${index}`
               }
-              className={`bubble ${message.role}${message.role === "tool" && message.status === "running" ? " running" : ""}${message.role === "assistant" && isPlainErrorText(message.text) ? " error" : ""}`}
+              aria-label={roleLabel(message.role)}
+              className={`msg msg-${message.role}${message.role === "tool" && message.status === "running" ? " is-running" : ""}${message.role === "research" ? ` msg-research-${message.status}` : ""}${message.role === "assistant" && isPlainErrorText(message.text) ? " is-error" : ""}`}
             >
-              <span className="role">{roleLabel(message.role)}</span>
               {message.role === "review" ? (
                 <ReviewCard message={message} postMessage={postMessage} />
               ) : message.role === "question" ? (
                 <QuestionCard message={message} postMessage={postMessage} />
+              ) : message.role === "research" ? (
+                <ResearchCard message={message} postMessage={postMessage} />
               ) : message.role === "assistant" && !isPlainErrorText(message.text) ? (
                 <AssistantMarkdown
                   text={message.text}
@@ -259,6 +271,13 @@ export function App() {
                     postMessage({ type: "open_location", path, line })
                   }
                 />
+              ) : message.role === "tool" ? (
+                <p className="tool-line">
+                  <span className="tool-marker" aria-hidden="true">
+                    ⏺
+                  </span>
+                  <span>{message.text}</span>
+                </p>
               ) : (
                 <p>{message.text}</p>
               )}
@@ -286,9 +305,13 @@ export function App() {
             </article>
           ))
         )}
-        {busy && messages[messages.length - 1]?.role !== "assistant" && !awaitingAnswer ? (
-          <article className="bubble assistant waiting" aria-live="polite" aria-busy="true">
-            <span className="role">Agent</span>
+        {busy && lastLine?.role !== "assistant" && !awaitingAnswer && !researchInFlight ? (
+          <article
+            className="msg msg-assistant is-waiting"
+            aria-label="Agent"
+            aria-live="polite"
+            aria-busy="true"
+          >
             <p className="waiting-line">
               <span className="waiting-dots" aria-hidden="true">
                 <span />
@@ -393,7 +416,7 @@ export function App() {
           <div className="composer-buttons">
             <button
               type="button"
-              className="secondary"
+              className="btn btn-secondary"
               disabled={busy || messages.length === 0}
               onClick={() => vscodeRef.current.postMessage({ type: "new_chat" })}
             >
@@ -401,18 +424,22 @@ export function App() {
             </button>
             <button
               type="button"
-              className="secondary"
+              className="btn btn-secondary"
               disabled={busy}
               onClick={() => vscodeRef.current.postMessage({ type: "get_selection" })}
             >
               Add selection
             </button>
             {busy ? (
-              <button type="button" onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => vscodeRef.current.postMessage({ type: "cancel" })}
+              >
                 Stop
               </button>
             ) : (
-              <button type="submit" disabled={input.trim().length === 0}>
+              <button type="submit" className="btn btn-primary" disabled={input.trim().length === 0}>
                 Send
               </button>
             )}
