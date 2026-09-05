@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
-import { applyExtMessage, shouldClearBusy, type ChatLine } from "./chatMessages";
+import {
+  applyExtMessage,
+  dockedReviews,
+  shouldClearBusy,
+  transcriptLines,
+  type ChatLine,
+} from "./chatMessages";
 import { contextRingRatio, formatContextTooltip } from "./contextMeter";
 import { AssistantMarkdown, isPlainErrorText } from "./markdown";
 import { QuestionCard } from "./QuestionCard";
@@ -225,7 +231,9 @@ export function App() {
   // A running research line already shows per-worker progress; stacking the
   // generic "waiting for reply" bubble under it would be redundant, not
   // reassuring.
-  const lastLine = messages[messages.length - 1];
+  const reviews = dockedReviews(messages);
+  const transcript = transcriptLines(messages);
+  const lastLine = transcript[transcript.length - 1];
   const researchInFlight = lastLine?.role === "research" && lastLine.status === "running";
 
   const shownSuggestions =
@@ -240,26 +248,33 @@ export function App() {
 
   return (
     <div className="app">
+      {reviews.length > 0 ? (
+        <div className="review-dock" aria-label="Review">
+          {reviews.map((review) => (
+            <article key={review.id} className="msg msg-review" aria-label="Review">
+              <ReviewCard message={review} postMessage={postMessage} />
+            </article>
+          ))}
+        </div>
+      ) : null}
       <div className="messages" ref={listRef}>
-        {messages.length === 0 && !busy ? (
+        {transcript.length === 0 && reviews.length === 0 && !busy ? (
           <p className="empty">
             Ask about a file in this workspace.{"\n"}
             Type @ to mention a path.
           </p>
         ) : (
-          messages.map((message, index) => (
+          transcript.map((message, index) => (
             <article
               key={
-                message.role === "review" || message.role === "question" || message.role === "research"
+                message.role === "question" || message.role === "research"
                   ? message.id
                   : `${message.role}-${index}`
               }
               aria-label={roleLabel(message.role)}
               className={`msg msg-${message.role}${message.role === "tool" && message.status === "running" ? " is-running" : ""}${message.role === "research" ? ` msg-research-${message.status}` : ""}${message.role === "assistant" && isPlainErrorText(message.text) ? " is-error" : ""}`}
             >
-              {message.role === "review" ? (
-                <ReviewCard message={message} postMessage={postMessage} />
-              ) : message.role === "question" ? (
+              {message.role === "question" ? (
                 <QuestionCard message={message} postMessage={postMessage} />
               ) : message.role === "research" ? (
                 <ResearchCard message={message} postMessage={postMessage} />

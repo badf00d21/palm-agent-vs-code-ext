@@ -57,6 +57,23 @@ export type ChatLine =
   | QuestionLine
   | ResearchLine;
 
+export function isReviewLine(line: ChatLine): line is ReviewLine {
+  return line.role === "review";
+}
+
+/** Pending first so a live proposal stays on top when an older review is still listed. */
+export function dockedReviews(messages: ChatLine[]): ReviewLine[] {
+  const reviews = messages.filter(isReviewLine);
+  return [
+    ...reviews.filter((review) => review.status === "pending"),
+    ...reviews.filter((review) => review.status !== "pending"),
+  ];
+}
+
+export function transcriptLines(messages: ChatLine[]): ChatLine[] {
+  return messages.filter((line) => !isReviewLine(line));
+}
+
 export function formatToolArgs(args: unknown): string {
   if (args && typeof args === "object" && "path" in args) {
     return String((args as { path: unknown }).path);

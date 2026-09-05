@@ -21,7 +21,31 @@ function sliceError(error: unknown): string {
   return message.slice(0, 400);
 }
 
-const MAX_INFERENCE_STEPS = 12;
+/** Explore + a few edits routinely exceeds 12; the cap is a runaway brake, not a goal. */
+export const MAX_INFERENCE_STEPS = 20;
+/** Leave this many inferences for write/edit instead of another search. */
+export const WIND_DOWN_STEPS = 3;
+
+const WRITE_TOOLS = new Set(["write", "edit", "propose_edit"]);
+const EXPLORE_TOOLS = new Set([
+  "search",
+  "glob",
+  "list_dir",
+  "outline",
+  "read_file",
+  "web_fetch",
+  "docs_search",
+  "research",
+  "diagnostics",
+  "references",
+  "hover",
+  "get_context",
+]);
+
+const WIND_DOWN_NUDGE =
+  "Few inference steps remain this turn. Stop searching and reading. " +
+  "If you have a change, call write or edit now with old_string you already have. " +
+  "If you do not, answer the user in one short sentence. Do not start research.";
 
 /**
  * Ollama's gemma4 tool dialect mangles arguments that carry code (braces,
@@ -73,6 +97,8 @@ export class EditorAgent extends BaseParticipant {
   private signal: AbortSignal | undefined;
   private inferenceSteps = 0;
   private emptyRecoveries = 0;
+  private woundDown = false;
+  private lastToolWasWrite = false;
   private readonly callCounts = new Map<string, number>();
 
   constructor(
@@ -96,6 +122,8 @@ export class EditorAgent extends BaseParticipant {
     this.pendingCalls.clear();
     this.inferenceSteps = 0;
     this.emptyRecoveries = 0;
+    this.woundDown = false;
+    this.lastToolWasWrite = false;
     this.callCounts.clear();
   }
 
@@ -138,6 +166,11 @@ export class EditorAgent extends BaseParticipant {
     }
     this.onActivity?.(generation);
     if (this.pendingCalls.size === 0) {
+      if (this.lastToolWasWrite && this.remainingSteps() <= 1) {
+        this.onTrace?.("write landed near step budget — finishing the turn");
+        this.onIdle(generation);
+        return;
+      }
       this.run();
     }
   }
@@ -217,6 +250,12 @@ export class EditorAgent extends BaseParticipant {
       );
     }
     this.callCounts.set(signature, ran + 1);
+    if (this.remainingSteps() <= 1 && EXPLORE_TOOLS.has(item.name)) {
+      return (
+        "Error: Almost no steps left this turn. Do not search or read more. " +
+        "Call write or edit with the text you already have, or answer the user."
+      );
+    }
     let args: unknown;
     try {
       args = item.args.trim() ? JSON.parse(item.args) : {};
@@ -225,10 +264,25 @@ export class EditorAgent extends BaseParticipant {
     }
     try {
       const result: unknown = await tool.invoke(args);
+      this.lastToolWasWrite = WRITE_TOOLS.has(item.name);
       return typeof result === "string" ? result : (JSON.stringify(result) ?? "");
     } catch (error) {
+      this.lastToolWasWrite = false;
       return `Error: ${sliceError(error)}`;
     }
+  }
+
+  private remainingSteps(): number {
+    return MAX_INFERENCE_STEPS - this.inferenceSteps;
+  }
+
+  private steerTowardEdit(): void {
+    if (this.woundDown || this.remainingSteps() > WIND_DOWN_STEPS) {
+      return;
+    }
+    this.woundDown = true;
+    this.onTrace?.(`wind-down: ${this.remainingSteps()} steps left — steering to write/edit`);
+    this.context.addContextItem(DeveloperMessageItem.create(WIND_DOWN_NUDGE));
   }
 
   private isStale(generation: number): boolean {
@@ -244,9 +298,13 @@ export class EditorAgent extends BaseParticipant {
     this.onWaitForModel?.(generation);
     this.inferenceSteps += 1;
     if (this.inferenceSteps > MAX_INFERENCE_STEPS) {
-      this.onFailed("Too many tool steps in one turn", generation);
+      this.onTrace?.(
+        `inference budget exhausted after ${MAX_INFERENCE_STEPS} steps — finishing the turn`,
+      );
+      this.onIdle(generation);
       return;
     }
+    this.steerTowardEdit();
     const { trimmed } = compactContext(this.context.getItems(), this.getBudget());
     if (trimmed) {
       this.environment.deliverSemanticEvent(

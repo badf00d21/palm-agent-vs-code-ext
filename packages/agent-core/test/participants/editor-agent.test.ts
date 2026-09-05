@@ -11,7 +11,7 @@ import { AgenticEnvironment } from "../../src/runtime/environment.js";
 import type { ExtToWebview } from "@palm-agent/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STUB_TEXT } from "../../src/context/compact.js";
-import { EditorAgent } from "../../src/participants/editor-agent.js";
+import { EditorAgent, MAX_INFERENCE_STEPS, WIND_DOWN_STEPS } from "../../src/participants/editor-agent.js";
 import { UIBridge } from "../../src/participants/ui-bridge.js";
 
 const BASE_URL = "http://localhost:11434/v1";
@@ -430,5 +430,117 @@ describe("EditorAgent tool failure feedback", () => {
       .map((m) => m.content);
     expect(userTexts).toEqual(["t2", "t3", "t4"]);
     expect(events.some((e) => e.type === "context_trimmed")).toBe(true);
+  });
+
+  it("finishes the turn after the inference budget instead of erroring", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      const chunk = {
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: `c${calls}`,
+                  type: "function",
+                  function: { name: "echo", arguments: `{"n":${calls}}` },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+      };
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }) as typeof fetch;
+
+    const { agent, state } = setup([echoTool("ok")]);
+    agent.onMessage("keep going");
+
+    await vi.waitFor(() => {
+      expect(state.idle).toBe(true);
+    });
+    expect(state.failed).toBeUndefined();
+    expect(calls).toBe(MAX_INFERENCE_STEPS);
+  });
+
+  function toolCallResponse(name: string, args: Record<string, unknown>, callId: string): Response {
+    const chunk = {
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: callId,
+                type: "function",
+                function: { name, arguments: JSON.stringify(args) },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+    return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  }
+
+  it("steers toward write/edit before the last few steps", async () => {
+    let calls = 0;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as { messages: ChatMessage[] });
+      calls += 1;
+      return toolCallResponse("echo", { n: calls }, `c${calls}`);
+    }) as typeof fetch;
+
+    const { agent } = setup([echoTool("ok")]);
+    agent.onMessage("keep going");
+
+    await vi.waitFor(() => {
+      expect(calls).toBeGreaterThanOrEqual(MAX_INFERENCE_STEPS - WIND_DOWN_STEPS);
+    });
+    const nudged = bodies.some((body) =>
+      body.messages.some(
+        (message) =>
+          typeof message.content === "string" && message.content.includes("Few inference steps remain"),
+      ),
+    );
+    expect(nudged).toBe(true);
+  });
+
+  it("finishes after a write on the last step instead of starting another inference", async () => {
+    let calls = 0;
+    const edit: Tool = {
+      name: "edit",
+      description: "proposes an edit",
+      strict: true,
+      type: "function",
+      parameters: { type: "object", properties: {}, required: [] },
+      invoke: async () => "Proposed 1 file",
+    };
+    globalThis.fetch = (async () => {
+      calls += 1;
+      if (calls < MAX_INFERENCE_STEPS) {
+        return toolCallResponse("echo", { n: calls }, `c${calls}`);
+      }
+      return toolCallResponse("edit", { path: "a.ts" }, `c${calls}`);
+    }) as typeof fetch;
+
+    const { agent, state } = setup([echoTool("ok"), edit]);
+    agent.onMessage("change a.ts");
+
+    await vi.waitFor(() => {
+      expect(state.idle).toBe(true);
+    });
+    expect(state.failed).toBeUndefined();
+    expect(calls).toBe(MAX_INFERENCE_STEPS);
   });
 });

@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { applyExtMessage, shouldClearBusy, type ChatLine } from "./chatMessages";
+import {
+  applyExtMessage,
+  dockedReviews,
+  shouldClearBusy,
+  transcriptLines,
+  type ChatLine,
+} from "./chatMessages";
+
+describe("dockedReviews", () => {
+  it("docks pending reviews above settled ones and keeps them out of the transcript", () => {
+    const messages: ChatLine[] = [
+      { role: "user", text: "ok" },
+      { role: "review", id: "old", files: [{ path: "a.ts", kind: "edit" }], status: "kept" },
+      { role: "review", id: "live", files: [{ path: "b.ts", kind: "edit" }], status: "pending" },
+    ];
+    expect(dockedReviews(messages).map((review) => review.id)).toEqual(["live", "old"]);
+    expect(transcriptLines(messages)).toEqual([{ role: "user", text: "ok" }]);
+  });
+});
 
 describe("applyExtMessage", () => {
   it("appends assistant text", () => {
