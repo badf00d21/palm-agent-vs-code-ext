@@ -8,6 +8,7 @@ import type { ModelConfig } from "../model/config.js";
 import { EditorAgent } from "../participants/editor-agent.js";
 import { UIBridge } from "../participants/ui-bridge.js";
 import type { QuestionHost } from "../tools/question.js";
+import { createResearchTool } from "../tools/research.js";
 import type { ReviewHost } from "../tools/review.js";
 import { SYSTEM_PROMPT, createWorkspaceTools } from "../tools/tools.js";
 import type { WorkspacePort } from "../workspace/port.js";
@@ -155,6 +156,23 @@ export function createAgentSession(
   };
 
   const tools = createWorkspaceTools(port, reviewHost, questionHost);
+  /**
+   * Built once, but reads `environment` and `turnAbort` through getters: both are
+   * replaced on every rebuild() and every turn, and a value captured here would
+   * point at a dead bus after the first New Chat.
+   */
+  tools.push(
+    createResearchTool({
+      getEnvironment: () => environment,
+      model: config.model,
+      tools,
+      getSignal: () => turnAbort?.signal,
+      // Research is model and I/O time, not human time, so the idle timer must
+      // keep running — but it has to be bumped on every worker step or a run
+      // past IDLE_TIMEOUT_MS would be killed as a stall.
+      onHeartbeat: () => bumpIdleTimer(generation),
+    }),
+  );
   let lastUsed: number | undefined;
   let contextMax: number | null = null;
   let environment = new AgenticEnvironment();
@@ -262,7 +280,6 @@ export function createAgentSession(
       const blocked = assertCanStartTurn(text, {
         busy,
         hasWorkspace: port.hasWorkspace(),
-        model: config.model,
       });
       if (blocked) {
         sink(blocked);

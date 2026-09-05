@@ -21,6 +21,7 @@ export function ReviewCard({ message, postMessage }: ReviewCardProps) {
       <div className="review-head">
         <button
           type="button"
+          className="btn btn-ghost review-toggle"
           aria-expanded={open}
           aria-controls={open ? filesId : undefined}
           aria-label={statusText ? `${fileLabel}, ${statusText}` : `${fileLabel}, pending review`}
@@ -38,7 +39,7 @@ export function ReviewCard({ message, postMessage }: ReviewCardProps) {
                 {pending && file.kind !== "mkdir" ? (
                   <button
                     type="button"
-                    className="review-file"
+                    className="btn btn-ghost review-file"
                     onClick={() => postMessage({ type: "open_diff", id: message.id, path: file.path })}
                   >
                     {file.path}
@@ -55,14 +56,26 @@ export function ReviewCard({ message, postMessage }: ReviewCardProps) {
           </ul>
           {pending ? (
             <div className="review-actions">
-              <button type="button" onClick={() => postMessage({ type: "reject_diff", id: message.id })}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => postMessage({ type: "reject_diff", id: message.id })}
+              >
                 Undo All
               </button>
-              <button type="button" onClick={() => postMessage({ type: "apply_diff", id: message.id })}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => postMessage({ type: "apply_diff", id: message.id })}
+              >
                 Keep All
               </button>
               {hasReviewable ? (
-                <button type="button" onClick={() => postMessage({ type: "open_diff", id: message.id })}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => postMessage({ type: "open_diff", id: message.id })}
+                >
                   Review
                 </button>
               ) : null}

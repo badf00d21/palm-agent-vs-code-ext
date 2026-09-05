@@ -1,8 +1,6 @@
-import { isForbiddenModelName } from "../model/config.js";
-
 export function assertCanStartTurn(
   text: string,
-  state: { busy: boolean; hasWorkspace: boolean; model: string },
+  state: { busy: boolean; hasWorkspace: boolean },
 ): { type: "error"; message: string } | null {
   if (text.trim().length === 0) {
     return { type: "error", message: "Empty message" };
@@ -12,13 +10,6 @@ export function assertCanStartTurn(
   }
   if (!state.hasWorkspace) {
     return { type: "error", message: "No workspace folder open" };
-  }
-  if (isForbiddenModelName(state.model)) {
-    return {
-      type: "error",
-      message:
-        "Model name routes to the wrong API. Use a local Ollama name such as gemma4:12b.",
-    };
   }
   return null;
 }

@@ -65,7 +65,7 @@
         "palmAgent.model": {
           "type": "string",
           "default": "gemma4:12b",
-          "description": "Ollama model name. Default gemma4:12b. Do not use gpt-* / o1–o9 / text-* names."
+          "description": "Model name, sent as-is to the configured Chat Completions endpoint."
         }
       }
     }

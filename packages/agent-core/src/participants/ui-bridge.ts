@@ -3,6 +3,11 @@ import { BaseParticipant, type BusEvent } from "../runtime/environment.js";
 import type { ExtToWebview } from "@palm-agent/shared";
 import { CONTEXT_TRIMMED_EVENT } from "../context/compact.js";
 import { CONTEXT_USAGE_EVENT, NARRATION_EVENT } from "../model/local-inference.js";
+import {
+  RESEARCH_SETTLED_EVENT,
+  RESEARCH_STARTED_EVENT,
+  RESEARCH_WORKER_EVENT,
+} from "../tools/research.js";
 import { extractToolLocations } from "./tool-locations.js";
 
 export function eventsFromFunctionCall(
@@ -59,6 +64,28 @@ export function eventFromContextTrimmed(item: BusEvent): ExtToWebview | null {
   return { type: "context_trimmed" };
 }
 
+/**
+ * The three research payloads are each their matching ExtToWebview variant minus
+ * `type`, so translation is a re-tag. Kept as a pass-through rather than a
+ * re-validation: the coordinator builds these from typed payloads, and a partial
+ * copy here would drift from the shared contract every time it grows a field.
+ */
+export function eventFromResearch(item: BusEvent): ExtToWebview | null {
+  const type = item.type;
+  if (
+    type !== RESEARCH_STARTED_EVENT &&
+    type !== RESEARCH_WORKER_EVENT &&
+    type !== RESEARCH_SETTLED_EVENT
+  ) {
+    return null;
+  }
+  const payload = item.payload;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  return { type, ...(payload as object) } as ExtToWebview;
+}
+
 function parseFunctionCallArgs(raw: string): unknown {
   if (!raw) {
     return {};
@@ -91,7 +118,10 @@ export class UIBridge extends BaseParticipant {
 
   override onExternalEvent(_source: Participant, item: BusEvent): void {
     const event =
-      eventFromContextUsage(item) ?? eventFromNarration(item) ?? eventFromContextTrimmed(item);
+      eventFromContextUsage(item) ??
+      eventFromNarration(item) ??
+      eventFromContextTrimmed(item) ??
+      eventFromResearch(item);
     if (event) {
       this.sink()(event);
     }

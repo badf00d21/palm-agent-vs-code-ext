@@ -3,6 +3,8 @@ import {
   resolveWorkspacePath,
   toWorkspaceRelative,
   type DirEntry,
+  type Diagnostic,
+  type DiagnosticSeverity,
   type EditorContext,
   type SourcePosition,
   type SymbolLocation,
@@ -43,6 +45,17 @@ function hoverText(content: vscode.MarkdownString | vscode.MarkedString): string
     return content.value;
   }
   return "";
+}
+
+/** Hints and information are editor chrome, not something worth the model's context. */
+function severityOf(severity: vscode.DiagnosticSeverity): DiagnosticSeverity | null {
+  if (severity === vscode.DiagnosticSeverity.Error) {
+    return "error";
+  }
+  if (severity === vscode.DiagnosticSeverity.Warning) {
+    return "warning";
+  }
+  return null;
 }
 
 function isDocumentSymbol(
@@ -194,6 +207,44 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       } catch {
         return "absent";
       }
+    },
+
+    async diagnostics(input?: string) {
+      const root = workspaceRoot();
+      if (!root) {
+        throw new Error("No workspace folder open");
+      }
+      let entries: Array<[vscode.Uri, vscode.Diagnostic[]]>;
+      if (input) {
+        const uri = vscode.Uri.file(resolveWorkspacePath(root, input));
+        entries = [[uri, vscode.languages.getDiagnostics(uri)]];
+      } else {
+        entries = vscode.languages.getDiagnostics();
+      }
+      const out: Diagnostic[] = [];
+      for (const [uri, raw] of entries) {
+        for (const diagnostic of raw) {
+          const severity = severityOf(diagnostic.severity);
+          if (!severity) {
+            continue;
+          }
+          const code =
+            typeof diagnostic.code === "object" && diagnostic.code !== null
+              ? String(diagnostic.code.value)
+              : diagnostic.code !== undefined
+                ? String(diagnostic.code)
+                : undefined;
+          out.push({
+            path: toWorkspaceRelative(root, uri.fsPath),
+            line: diagnostic.range.start.line + 1,
+            severity,
+            message: diagnostic.message,
+            source: diagnostic.source,
+            code,
+          });
+        }
+      }
+      return out;
     },
 
     async getContext() {

@@ -44,6 +44,21 @@ export interface SymbolLocation {
   text: string;
 }
 
+/** Hints and information are editor chrome, never surfaced to the model. */
+export type DiagnosticSeverity = "error" | "warning";
+
+export interface Diagnostic {
+  /** Workspace-relative POSIX path. */
+  path: string;
+  /** 1-based. */
+  line: number;
+  severity: DiagnosticSeverity;
+  message: string;
+  /** Whichever extension published it: rust-analyzer, ts, eslint. */
+  source?: string;
+  code?: string;
+}
+
 export interface WorkspacePort {
   hasWorkspace(): boolean;
   readFile(path: string): Promise<string>;
@@ -67,4 +82,11 @@ export interface WorkspacePort {
   /** Workspace-relative POSIX path. Trailing slashes ignored. */
   exists(path: string): Promise<"file" | "dir" | "absent">;
   getContext(): Promise<EditorContext>;
+  /**
+   * Errors and warnings the editor's language servers currently report.
+   * Omit path for the whole workspace. Empty is ambiguous by nature — it means
+   * either "clean" or "nothing has checked this yet" — so callers must not
+   * read it as a clean bill of health on its own.
+   */
+  diagnostics(path?: string): Promise<Diagnostic[]>;
 }

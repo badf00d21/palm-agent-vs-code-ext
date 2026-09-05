@@ -24,6 +24,7 @@ function fakePort(files: Record<string, string>): WorkspacePort {
     hover: async () => "",
     exists: async (path) => (files[path] === undefined ? "absent" : "file"),
     getContext: async () => ({ activeFile: null, selection: null }),
+    diagnostics: async () => [],
   };
 }
 
