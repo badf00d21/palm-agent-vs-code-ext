@@ -59,12 +59,12 @@
       "properties": {
         "palmAgent.ollamaBaseUrl": {
           "type": "string",
-          "default": "http://localhost:11434/v1",
+          "default": "https://api.deepseek.com",
           "description": "Ollama Chat Completions base URL"
         },
         "palmAgent.model": {
           "type": "string",
-          "default": "gemma4:12b",
+          "default": "deepseek-v4-flash",
           "description": "Model name, sent as-is to the configured Chat Completions endpoint."
         }
       }

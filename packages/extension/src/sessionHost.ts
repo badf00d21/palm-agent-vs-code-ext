@@ -20,7 +20,7 @@ export function readModelConfig(): ModelConfig {
   return {
     baseUrl: cfg.get("ollamaBaseUrl", DEFAULT_BASE_URL),
     model: cfg.get("model", DEFAULT_MODEL),
-    apiKey: "not-needed",
+    apiKey: process.env.OPENAI_API_KEY ?? "",
   };
 }
 
