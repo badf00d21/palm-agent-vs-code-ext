@@ -20,7 +20,8 @@
     "vitest": "^3.1.2"
   },
   "dependencies": {
-    "@mozaik-ai/core": "^3.14.0",
+    "@mozaik-ai/cloud-sdk": "^0.1.2",
+    "@mozaik-ai/core": "^4.0.5",
     "@palm-agent/shared": "workspace:*",
     "jsonc-parser": "^3.3.1"
   }

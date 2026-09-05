@@ -46,7 +46,7 @@ function outputText(ctx: ModelContext, callId: string): string | undefined {
 
 describe("compactContext", () => {
   it("stubs older-turn tool output and leaves the latest turn intact", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     addTurn(ctx, "first", { callId: "c1", output: "FILE BODY" });
     addTurn(ctx, "second", { callId: "c2", output: "NEW BODY" });
@@ -59,7 +59,7 @@ describe("compactContext", () => {
   });
 
   it("slides to the last 3 user turns when over 80%", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     addTurn(ctx, "t1");
     addTurn(ctx, "t2");
@@ -72,7 +72,7 @@ describe("compactContext", () => {
   });
 
   it("does not slide below 80% and still stubs older outputs", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     addTurn(ctx, "t1", { callId: "c1", output: "OLD" });
     addTurn(ctx, "t2");
@@ -85,7 +85,7 @@ describe("compactContext", () => {
   });
 
   it("does not slide when max is null", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     addTurn(ctx, "t1");
     addTurn(ctx, "t2");
@@ -97,7 +97,7 @@ describe("compactContext", () => {
   });
 
   it("does not slide when already at 3 turns over the ratio", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     addTurn(ctx, "t1");
     addTurn(ctx, "t2");
@@ -108,7 +108,7 @@ describe("compactContext", () => {
   });
 
   it("is idempotent after a slide", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     addTurn(ctx, "t1", { callId: "c1", output: "OLD" });
     addTurn(ctx, "t2");
@@ -123,7 +123,7 @@ describe("compactContext", () => {
   });
 
   it("no-ops on system-only context", () => {
-    const ctx = ModelContext.create("t");
+    const ctx = ModelContext.create();
     ctx.addContextItem(DeveloperMessageItem.create("sys"));
     expect(compactContext(ctx.getItems(), { lastUsed: 9000, max: 10000 })).toEqual({
       trimmed: false,

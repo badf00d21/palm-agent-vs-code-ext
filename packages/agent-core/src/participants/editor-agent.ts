@@ -1,16 +1,13 @@
 import {
-  AgenticEnvironment,
-  AgenticError,
-  BaseParticipant,
   DeveloperMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
   ModelContext,
   ModelMessageItem,
-  SemanticEvent,
   UserMessageItem,
   type Tool,
 } from "@mozaik-ai/core";
+import { AgenticEnvironment, BaseParticipant, createSemanticEvent } from "../runtime/environment.js";
 import {
   compactContext,
   CONTEXT_TRIMMED_EVENT,
@@ -90,7 +87,7 @@ export class EditorAgent extends BaseParticipant {
     private readonly onTrace?: (line: string) => void,
     private readonly getBudget: () => CompactBudget = () => ({ max: null }),
   ) {
-    super();
+    super("Editor Agent", "agent");
   }
 
   beginTurn(generation: number, signal: AbortSignal): void {
@@ -160,7 +157,7 @@ export class EditorAgent extends BaseParticipant {
     }
   }
 
-  override onError(error: AgenticError): void {
+  override onError(error: Error): void {
     const generation = this.turnGeneration;
     if (this.isStale(generation)) {
       return;
@@ -254,7 +251,7 @@ export class EditorAgent extends BaseParticipant {
     if (trimmed) {
       this.environment.deliverSemanticEvent(
         this,
-        new SemanticEvent(CONTEXT_TRIMMED_EVENT, {}),
+        createSemanticEvent(CONTEXT_TRIMMED_EVENT, {}, this.getId()),
       );
     }
     this.onTrace?.(

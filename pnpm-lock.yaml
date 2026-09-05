@@ -10,9 +10,12 @@ importers:
 
   packages/agent-core:
     dependencies:
+      '@mozaik-ai/cloud-sdk':
+        specifier: ^0.1.2
+        version: 0.1.2(@mozaik-ai/core@4.0.5(ws@8.21.3))
       '@mozaik-ai/core':
-        specifier: ^3.14.0
-        version: 3.14.0(ws@8.21.3)
+        specifier: ^4.0.5
+        version: 4.0.5(ws@8.21.3)
       '@palm-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -38,6 +41,9 @@ importers:
       '@vscode/ripgrep':
         specifier: ^1.15.9
         version: 1.18.0
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@18.3.31)(react@18.3.1)
@@ -376,8 +382,17 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
-  '@mozaik-ai/core@3.14.0':
-    resolution: {integrity: sha512-UZNCTVoCRCeHlXcV3tbgTkzR34UoSPG/fDnnKt1fv4rVOugHeGbthC9Q4zkqg7tANYiBCxQyTA7r8KTWdm7FCQ==}
+  '@mozaik-ai/cloud-sdk@0.1.2':
+    resolution: {integrity: sha512-2fj4kINoOu+kqXbaSqA+X3bPpp+jk0rXyLDZ6hq3Ur4d3ew4ef8NpnDgOhufGX2xyA1Y1ugJRPmTgx8pavoobg==}
+    hasBin: true
+    peerDependencies:
+      '@mozaik-ai/core': '>=4.0.0-beta.1'
+    peerDependenciesMeta:
+      '@mozaik-ai/core':
+        optional: true
+
+  '@mozaik-ai/core@4.0.5':
+    resolution: {integrity: sha512-I644y+JPapXtun3tS8mbC3k3Cux66y2nrW/HTmerUX99/TkfQtbcwL7Xjm0nOnk0bQPQer5J+cqZkpqIRHIZzA==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -2029,11 +2044,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mozaik-ai/core@3.14.0(ws@8.21.3)':
+  '@mozaik-ai/cloud-sdk@0.1.2(@mozaik-ai/core@4.0.5(ws@8.21.3))':
+    optionalDependencies:
+      '@mozaik-ai/core': 4.0.5(ws@8.21.3)
+
+  '@mozaik-ai/core@4.0.5(ws@8.21.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.74.0(zod@4.5.1)
       '@google/genai': 2.19.0(@modelcontextprotocol/sdk@1.30.0(zod@4.5.1))
       '@modelcontextprotocol/sdk': 1.30.0(zod@4.5.1)
+      '@mozaik-ai/cloud-sdk': 0.1.2(@mozaik-ai/core@4.0.5(ws@8.21.3))
       dotenv: 17.4.2
       openai: 6.49.0(ws@8.21.3)(zod@4.5.1)
       zod: 4.5.1

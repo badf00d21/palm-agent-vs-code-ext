@@ -82,6 +82,7 @@
     "@palm-agent/agent-core": "workspace:*",
     "@palm-agent/shared": "workspace:*",
     "@vscode/ripgrep": "^1.15.9",
+    "dotenv": "^17.4.2",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"
   },

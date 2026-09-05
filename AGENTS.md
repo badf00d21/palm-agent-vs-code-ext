@@ -20,7 +20,7 @@ Human-in-the-loop: chat o kodu → predlog izmene → **review svakog diff-a** �
 Ovo su odluke donete namerno — ne preispituj ih bez razloga, gradi na njima.
 
 1. **Delivery: extension-first.** Prvo obična VS Code ekstenzija. Fork dolazi kad zatrebaju stvari koje ext API ne da lepo (inline Cmd+K widget, custom diff decoracije po hunk-u, Tab UI).
-2. **Runtime: `@mozaik-ai/core`.** Participant-on-bus model. Referenca za TS API: **`jigjoy-ai/cli-agent-starter`** (minimalno i čisto). Za *arhitekturu agent mode-a*: **`jigjoy-ai/baro`** (čitaj `docs/collective-runtime.md`, ne ceo tree — velik je i dobrim delom Rust).
+2. **Runtime: `@mozaik-ai/core` ^4.** Participant-on-bus model (`defineRuntime`). Referenca za TS API: **`jigjoy-ai/cli-agent-starter`** (minimalno i čisto). Za *arhitekturu agent mode-a*: **`jigjoy-ai/baro`** (čitaj `docs/collective-runtime.md`, ne ceo tree — velik je i dobrim delom Rust). `MOZAIK_API_KEY` šalje loop evente na Mozaik Cloud (`@mozaik-ai/cloud-sdk`); nije LLM ključ.
 3. **`agent-core` je čist od editora.** Nijedan `import 'vscode'` u tom paketu. To je jedini deo koji preživljava prelazak na fork; komunicira sa editorom preko tool callback-ova, ne direktno.
 4. **Agent u ext host-u za v0–v4**, pa ekstrakcija u zaseban Node proces (JSON-RPC preko stdio) u v5. Ne komplikuj sa IPC-om dok loop ne radi.
 5. **Edit format: SEARCH/REPLACE blokovi.** Applier → `vscode.WorkspaceEdit` (undo-friendly) → `TextDocument.save()` na Keep All → preview kroz native `vscode.diff` → accept/reject. **Ne** unified diff (LLM-ovi ga lošije proizvode).
@@ -128,10 +128,12 @@ pnpm dlx yo code   # → New Extension (TypeScript), smesti u packages/extension
 `.env.example` (kopiraj u `.env`, ne commit-uj `.env`):
 
 ```bash
-# Cloud (opciono, za heavy faze / poređenje)
-ANTHROPIC_API_KEY=
+# Mozaik Cloud (https://app.jigjoy.ai) — live loop view. Nije LLM ključ.
+MOZAIK_API_KEY=
+# MOZAIK_CLOUD_ENDPOINT=https://api.app.jigjoy.ai
 
-# Lokalno preko Ollama (Chat Completions!)
+# Provider keys for inference
+ANTHROPIC_API_KEY=
 OPENAI_API_KEY=not-needed
 OPENAI_BASE_URL=http://localhost:11434/v1
 # Preporuka za start: gemma4:12b (pouzdan tool-format); qwen2.5-coder:14b kao fallback

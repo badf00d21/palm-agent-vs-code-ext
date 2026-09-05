@@ -1,13 +1,11 @@
 import {
-  AgenticEnvironment,
-  BaseParticipant,
   FunctionCallItem,
   FunctionCallOutputItem,
   ModelContext,
   ModelMessageItem,
-  SemanticEvent,
   UserMessageItem,
 } from "@mozaik-ai/core";
+import { AgenticEnvironment, BaseParticipant, type BusEvent } from "../../src/runtime/environment.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   mapContextToChatMessages,
@@ -135,7 +133,7 @@ describe("parseToolCallsFromContent", () => {
 
 describe("mapContextToChatMessages", () => {
   it("folds a propose_edit call/output into prose so Gemma cannot imitate the tool", () => {
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(UserMessageItem.create("create files"));
     context.addContextItem(
       FunctionCallItem.rehydrate({
@@ -165,7 +163,7 @@ describe("mapContextToChatMessages", () => {
   });
 
   it("keeps a real tool (read_file) as a tool_call with a tool result", () => {
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(
       FunctionCallItem.rehydrate({
         callId: "call_1",
@@ -207,7 +205,7 @@ describe("runLocalChatCompletions", () => {
       },
     });
 
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(UserMessageItem.create("hi"));
 
     let failed: string | undefined;
@@ -225,7 +223,7 @@ describe("runLocalChatCompletions", () => {
         const body = JSON.parse(String(init?.body)) as { stream?: boolean; model: string; max_tokens: number };
         expect(body.stream).toBe(true);
         expect(body.model).toBe("deepseek-v4-pro");
-        expect(body.max_tokens).toBe(4096);
+        expect(body.max_tokens).toBe(9192);
         return sseResponse([
           { delta: { role: "assistant", content: "hello from qwen" }, finish_reason: "stop" },
         ]);
@@ -241,12 +239,12 @@ describe("runLocalChatCompletions", () => {
   it("sends stream_options.include_usage and emits context_usage from total_tokens", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
     const environment = fakeEnv({
-      deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
-        events.push({ type: item.getType(), data: item.data });
+      deliverSemanticEvent: (_caller: unknown, item: BusEvent) => {
+        events.push({ type: item.type, data: item.payload });
       },
     });
 
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(UserMessageItem.create("hi"));
 
     await runLocalChatCompletions({
@@ -278,11 +276,11 @@ describe("runLocalChatCompletions", () => {
   it("does not emit context_usage when the stream has no usage", async () => {
     const types: string[] = [];
     const environment = fakeEnv({
-      deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
-        types.push(item.getType());
+      deliverSemanticEvent: (_caller: unknown, item: BusEvent) => {
+        types.push(item.type);
       },
     });
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(UserMessageItem.create("hi"));
     await runLocalChatCompletions({
       model: "gemma4:12b",
@@ -311,7 +309,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -335,7 +333,7 @@ describe("runLocalChatCompletions", () => {
 
     const running = runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -389,7 +387,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -421,7 +419,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -455,7 +453,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -489,7 +487,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -533,7 +531,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
@@ -560,7 +558,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
@@ -599,7 +597,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
@@ -624,7 +622,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -668,7 +666,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -714,7 +712,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -752,7 +750,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -777,7 +775,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -816,7 +814,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {
@@ -848,11 +846,11 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
-        deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
-          narrations.push((item.data as { text?: string }).text ?? "");
+        deliverSemanticEvent: (_caller: unknown, item: BusEvent) => {
+          narrations.push((item.payload as { text?: string }).text ?? "");
         },
         deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => {
           delivered.push(item);
@@ -878,10 +876,10 @@ describe("runLocalChatCompletions", () => {
 
   it("does not narrate when content accompanies native tool_calls", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
-    const narrations: Array<SemanticEvent<unknown>> = [];
+    const narrations: Array<BusEvent> = [];
     const calls: FunctionCallItem[] = [];
     const environment = fakeEnv({
-      deliverSemanticEvent: (_caller: unknown, item: SemanticEvent<unknown>) => {
+      deliverSemanticEvent: (_caller: unknown, item: BusEvent) => {
         narrations.push(item);
       },
       deliverFunctionCall: (_caller: unknown, item: FunctionCallItem) => {
@@ -894,7 +892,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -943,7 +941,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "deepseek-v4-pro",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment,
       caller: new BaseParticipant(),
@@ -998,8 +996,8 @@ describe("runLocalChatCompletions", () => {
         ]),
     };
 
-    await runLocalChatCompletions({ ...params, context: ModelContext.create("one") });
-    await runLocalChatCompletions({ ...params, context: ModelContext.create("two") });
+    await runLocalChatCompletions({ ...params, context: ModelContext.create() });
+    await runLocalChatCompletions({ ...params, context: ModelContext.create() });
 
     expect(calls).toHaveLength(2);
     expect(calls[0]?.callId).toMatch(/^call_s\d+$/);
@@ -1013,11 +1011,11 @@ describe("runLocalChatCompletions", () => {
     const delivered: ModelMessageItem[] = [];
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
-        deliverSemanticEvent: (_c: unknown, item: SemanticEvent<unknown>) => {
-          narrations.push((item.data as { text?: string }).text ?? "");
+        deliverSemanticEvent: (_c: unknown, item: BusEvent) => {
+          narrations.push((item.payload as { text?: string }).text ?? "");
         },
         deliverModelMessage: (_c: unknown, item: ModelMessageItem) => {
           delivered.push(item);
@@ -1046,7 +1044,7 @@ describe("runLocalChatCompletions", () => {
 
     await runLocalChatCompletions({
       model: "gemma4:12b",
-      context: ModelContext.create("test"),
+      context: ModelContext.create(),
       tools: [],
       environment: fakeEnv({
         deliverModelMessage: () => {

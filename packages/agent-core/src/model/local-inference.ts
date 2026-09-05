@@ -3,14 +3,13 @@ import {
   FunctionCallItem,
   FunctionCallOutputItem,
   ModelMessageItem,
-  SemanticEvent,
   SystemMessageItem,
   UserMessageItem,
-  type AgenticEnvironment,
   type ModelContext,
   type Participant,
   type Tool,
 } from "@mozaik-ai/core";
+import { createSemanticEvent, type AgenticEnvironment } from "../runtime/environment.js";
 import { looksLikeMalformedEditFence, parseSearchReplaceBlocks } from "../tools/edit-blocks.js";
 import { parseToolCallsFromContent, type ChatToolCall } from "./completion-parse.js";
 import { readSseChatCompletion } from "./chat-stream.js";
@@ -341,7 +340,7 @@ export async function runLocalChatCompletions(
         emittedNarration = true;
         params.environment.deliverSemanticEvent(
           params.caller,
-          new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text }),
+          createSemanticEvent<NarrationPayload>(NARRATION_EVENT, { text }, params.caller.getId()),
         );
       },
       params.signal,
@@ -354,7 +353,7 @@ export async function runLocalChatCompletions(
     if (typeof used === "number" && Number.isFinite(used)) {
       params.environment.deliverSemanticEvent(
         params.caller,
-        new SemanticEvent<ContextUsagePayload>(CONTEXT_USAGE_EVENT, { used }),
+        createSemanticEvent<ContextUsagePayload>(CONTEXT_USAGE_EVENT, { used }, params.caller.getId()),
       );
     }
     const hasNativeTools = assembled.toolCalls.length > 0;
@@ -392,7 +391,11 @@ export async function runLocalChatCompletions(
     if (!hasNativeTools && !emptyContent && !emittedNarration && !actionable) {
       params.environment.deliverSemanticEvent(
         params.caller,
-        new SemanticEvent<NarrationPayload>(NARRATION_EVENT, { text: assembled.content }),
+        createSemanticEvent<NarrationPayload>(
+          NARRATION_EVENT,
+          { text: assembled.content },
+          params.caller.getId(),
+        ),
       );
     }
     deliverCompletion(params, {

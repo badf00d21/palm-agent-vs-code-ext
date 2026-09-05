@@ -1,8 +1,10 @@
 import * as vscode from "vscode";
 import { ChatViewProvider } from "./chatViewProvider";
+import { loadWorkspaceEnv } from "./loadEnv";
 import { createSessionHost } from "./sessionHost";
 
 export function activate(context: vscode.ExtensionContext): void {
+  loadWorkspaceEnv(context.extensionPath);
   const log = vscode.window.createOutputChannel("Palm Agent");
   log.appendLine("activated");
   log.show(true);

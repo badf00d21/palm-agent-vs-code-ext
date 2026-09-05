@@ -25,7 +25,7 @@ Pravilo iz `AGENTS.md`: fakt o agentu/loop-u ostaje ovde; fakt o editoru ide u `
 ## Kako je spojeno
 
 1. Extension pravi `WorkspacePort` (fs, ripgrep, aktivni editor) i `ReviewHost` (pending review + `WorkspaceEdit` + `save()` na Keep All).
-2. `createAgentSession(port, config, sink, reviewHost)` diže `AgenticEnvironment`, `EditorAgent` i `UIBridge`.
+2. `createAgentSession(port, config, sink, reviewHost, trace, { mozaikApiKey })` diže 4.x `defineRuntime` (preko `AgenticEnvironment` wrapper-a), `EditorAgent` i `UIBridge`. Ako je `MOZAIK_API_KEY` setovan, join-uje Mozaik Cloud exporter.
 3. `startTurn` šalje user tekst na bus. Agent zove read-only tool-ove. Izmene model piše kao aider SEARCH/REPLACE u `content`; jezgro to pretvara u interni `propose_edit` (ne piše disk). `propose_edit` nije u Ollama `tools` nizu.
 4. Lokalni model ide na Chat Completions (`OPENAI_BASE_URL`, default Ollama). Ime modela ne sme biti `gpt-*` / `o1`–`o9` / `text-*` — Mozaik bi to rutirao na Responses API.
 5. Tool output ide modelu **sirov** — Mozaikov `executeFunctionCall` je namerno zaobiđen jer JSON.stringify-uje svaki output (model bi čitao kod kao escaped jedan red). Greške tool-ova (nepoznat tool, loš JSON u argumentima, throw iz invoke) vraćaju se modelu kao output tog poziva da se sam ispravi — ne obaraju turn.

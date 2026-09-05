@@ -1,9 +1,5 @@
-import {
-  BaseParticipant,
-  FunctionCallItem,
-  FunctionCallOutputItem,
-  SemanticEvent,
-} from "@mozaik-ai/core";
+import { FunctionCallItem, FunctionCallOutputItem } from "@mozaik-ai/core";
+import { BaseParticipant, createSemanticEvent } from "../../src/runtime/environment.js";
 import { describe, expect, it } from "vitest";
 import type { ExtToWebview } from "@palm-agent/shared";
 import { CONTEXT_TRIMMED_EVENT } from "../../src/context/compact.js";
@@ -49,18 +45,18 @@ describe("UIBridge mappers", () => {
 
   it("maps a narration event to assistant_delta", () => {
     expect(
-      eventFromNarration(new SemanticEvent(NARRATION_EVENT, { text: "Reading the file first." })),
+      eventFromNarration(createSemanticEvent(NARRATION_EVENT, { text: "Reading the file first." })),
     ).toEqual({ type: "assistant_delta", text: "Reading the file first." });
   });
 
   it("ignores other semantic events and empty narration", () => {
-    expect(eventFromNarration(new SemanticEvent("other", { text: "x" }))).toBeNull();
-    expect(eventFromNarration(new SemanticEvent(NARRATION_EVENT, { text: "" }))).toBeNull();
-    expect(eventFromNarration(new SemanticEvent(NARRATION_EVENT, {}))).toBeNull();
+    expect(eventFromNarration(createSemanticEvent("other", { text: "x" }))).toBeNull();
+    expect(eventFromNarration(createSemanticEvent(NARRATION_EVENT, { text: "" }))).toBeNull();
+    expect(eventFromNarration(createSemanticEvent(NARRATION_EVENT, {}))).toBeNull();
   });
 
   it("maps a context_usage event", () => {
-    expect(eventFromContextUsage(new SemanticEvent(CONTEXT_USAGE_EVENT, { used: 4200 }))).toEqual({
+    expect(eventFromContextUsage(createSemanticEvent(CONTEXT_USAGE_EVENT, { used: 4200 }))).toEqual({
       type: "context_usage",
       used: 4200,
       max: null,
@@ -68,17 +64,17 @@ describe("UIBridge mappers", () => {
   });
 
   it("ignores context_usage without a finite used", () => {
-    expect(eventFromContextUsage(new SemanticEvent(CONTEXT_USAGE_EVENT, {}))).toBeNull();
+    expect(eventFromContextUsage(createSemanticEvent(CONTEXT_USAGE_EVENT, {}))).toBeNull();
   });
 
   it("maps a context_trimmed event", () => {
-    expect(eventFromContextTrimmed(new SemanticEvent(CONTEXT_TRIMMED_EVENT, {}))).toEqual({
+    expect(eventFromContextTrimmed(createSemanticEvent(CONTEXT_TRIMMED_EVENT, {}))).toEqual({
       type: "context_trimmed",
     });
   });
 
   it("ignores other events in eventFromContextTrimmed", () => {
-    expect(eventFromContextTrimmed(new SemanticEvent("other", {}))).toBeNull();
+    expect(eventFromContextTrimmed(createSemanticEvent("other", {}))).toBeNull();
   });
 });
 
@@ -89,9 +85,9 @@ describe("UIBridge narration forwarding", () => {
 
     bridge.onExternalEvent(
       new BaseParticipant(),
-      new SemanticEvent(NARRATION_EVENT, { text: "Reading the file first." }),
+      createSemanticEvent(NARRATION_EVENT, { text: "Reading the file first." }),
     );
-    bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent("unrelated", { text: "no" }));
+    bridge.onExternalEvent(new BaseParticipant(), createSemanticEvent("unrelated", { text: "no" }));
 
     expect(events).toEqual([{ type: "assistant_delta", text: "Reading the file first." }]);
   });
@@ -99,14 +95,14 @@ describe("UIBridge narration forwarding", () => {
   it("forwards context_usage through onExternalEvent to the sink", () => {
     const events: ExtToWebview[] = [];
     const bridge = new UIBridge(() => (event) => events.push(event));
-    bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent(CONTEXT_USAGE_EVENT, { used: 12 }));
+    bridge.onExternalEvent(new BaseParticipant(), createSemanticEvent(CONTEXT_USAGE_EVENT, { used: 12 }));
     expect(events).toEqual([{ type: "context_usage", used: 12, max: null }]);
   });
 
   it("forwards context_trimmed through onExternalEvent to the sink", () => {
     const events: ExtToWebview[] = [];
     const bridge = new UIBridge(() => (event) => events.push(event));
-    bridge.onExternalEvent(new BaseParticipant(), new SemanticEvent(CONTEXT_TRIMMED_EVENT, {}));
+    bridge.onExternalEvent(new BaseParticipant(), createSemanticEvent(CONTEXT_TRIMMED_EVENT, {}));
     expect(events).toEqual([{ type: "context_trimmed" }]);
   });
 });

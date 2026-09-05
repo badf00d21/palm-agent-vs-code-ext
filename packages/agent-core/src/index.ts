@@ -1,6 +1,11 @@
 export type { ModelConfig } from "./model/config.js";
 export { DEFAULT_BASE_URL, DEFAULT_MODEL, isForbiddenModelName } from "./model/config.js";
-export type { AgentSession, SessionEventSink, SessionTrace } from "./session/session.js";
+export type {
+  AgentSession,
+  CreateSessionOptions,
+  SessionEventSink,
+  SessionTrace,
+} from "./session/session.js";
 export { createAgentSession } from "./session/session.js";
 export type {
   DirEntry,

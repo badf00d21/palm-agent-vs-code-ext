@@ -1,10 +1,6 @@
-import {
-  AgenticEnvironment,
-  BaseParticipant,
-  DeveloperMessageItem,
-  ModelContext,
-  sendMessage,
-} from "@mozaik-ai/core";
+import { DeveloperMessageItem, ModelContext } from "@mozaik-ai/core";
+import { attachCloud } from "../runtime/cloud.js";
+import { AgenticEnvironment, BaseParticipant } from "../runtime/environment.js";
 import type { ExtToWebview } from "@palm-agent/shared";
 import type { CompactBudget } from "../context/compact.js";
 import { loadWorkspaceInstructions } from "../context/instructions.js";
@@ -47,12 +43,18 @@ function inferenceTimedOut(): string {
   return `Ollama did not finish in ${INFERENCE_TIMEOUT_MS / 1000}s. If the model is loading into VRAM, wait and retry, or press Stop.`;
 }
 
+export interface CreateSessionOptions {
+  mozaikApiKey?: string;
+  mozaikCloudEndpoint?: string;
+}
+
 export function createAgentSession(
   port: WorkspacePort,
   config: ModelConfig,
   initialSink: SessionEventSink = () => undefined,
   reviewHost: ReviewHost,
   trace: SessionTrace = () => undefined,
+  options: CreateSessionOptions = {},
 ): AgentSession {
   let sink = initialSink;
   let busy = false;
@@ -156,10 +158,11 @@ export function createAgentSession(
   let lastUsed: number | undefined;
   let contextMax: number | null = null;
   let environment = new AgenticEnvironment();
-  let context = ModelContext.create("palm-agent");
-  let user = new BaseParticipant();
+  let context = ModelContext.create();
+  let user = new BaseParticipant("User");
   let agent: EditorAgent;
   let ui: UIBridge;
+  let cloud: ReturnType<typeof attachCloud> | undefined;
 
   const getBudget = (): CompactBudget => ({ lastUsed, max: contextMax });
 
@@ -187,11 +190,12 @@ export function createAgentSession(
   };
 
   const rebuild = (): void => {
+    void cloud?.end();
     environment = new AgenticEnvironment();
-    context = ModelContext.create("palm-agent");
+    context = ModelContext.create();
     context.addContextItem(DeveloperMessageItem.create(SYSTEM_PROMPT));
     instructionsLoaded = false;
-    user = new BaseParticipant();
+    user = new BaseParticipant("User");
     agent = new EditorAgent(
       environment,
       context,
@@ -208,6 +212,10 @@ export function createAgentSession(
     agent.join(environment);
     ui.join(environment);
     user.join(environment);
+    const apiKey = options.mozaikApiKey?.trim();
+    cloud = apiKey
+      ? attachCloud(environment, { apiKey, endpoint: options.mozaikCloudEndpoint }, trace)
+      : undefined;
   };
 
   rebuild();
@@ -282,7 +290,7 @@ export function createAgentSession(
         settle = () => {
           resolve();
         };
-        sendMessage(environment, text.trim(), user);
+        environment.sendUserMessage(text.trim(), user);
       });
     },
   };

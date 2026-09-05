@@ -6,6 +6,7 @@ import {
   type ModelConfig,
   type WorkspacePort,
 } from "@palm-agent/agent-core";
+import { readMozaikCloudOptions } from "./loadEnv";
 import type { ExtToWebview } from "@palm-agent/shared";
 import * as vscode from "vscode";
 import { applyFiles } from "./applyFiles";
@@ -58,7 +59,14 @@ export function createSessionHost(log?: {
       void reportProblemsAfterApply(emit, paths).catch(() => undefined);
     },
   });
-  session = createAgentSession(port, readModelConfig(), emit, store, trace);
+  session = createAgentSession(
+    port,
+    readModelConfig(),
+    emit,
+    store,
+    trace,
+    readMozaikCloudOptions(),
+  );
   return {
     session: {
       get busy() {

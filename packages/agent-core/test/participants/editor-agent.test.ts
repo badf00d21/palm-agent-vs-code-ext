@@ -1,5 +1,4 @@
 import {
-  AgenticEnvironment,
   DeveloperMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
@@ -8,6 +7,7 @@ import {
   UserMessageItem,
   type Tool,
 } from "@mozaik-ai/core";
+import { AgenticEnvironment } from "../../src/runtime/environment.js";
 import type { ExtToWebview } from "@palm-agent/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STUB_TEXT } from "../../src/context/compact.js";
@@ -48,7 +48,7 @@ function echoTool(output: string): Tool {
 
 function setup(tools: Tool[]) {
   const environment = new AgenticEnvironment();
-  const context = ModelContext.create("test");
+  const context = ModelContext.create();
   // A user item keeps compaction from treating every tool output as prior-turn context.
   context.addContextItem(UserMessageItem.create("test"));
   const state = { failed: undefined as string | undefined, idle: false };
@@ -368,7 +368,7 @@ describe("EditorAgent tool failure feedback", () => {
 
   it("stubs prior-turn tool output before the next inference", async () => {
     const environment = new AgenticEnvironment();
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(DeveloperMessageItem.create("sys"));
     context.addContextItem(UserMessageItem.create("first"));
     context.addContextItem(
@@ -398,7 +398,7 @@ describe("EditorAgent tool failure feedback", () => {
 
   it("slides to 3 user turns and emits context_trimmed", async () => {
     const environment = new AgenticEnvironment();
-    const context = ModelContext.create("test");
+    const context = ModelContext.create();
     context.addContextItem(DeveloperMessageItem.create("sys"));
     context.addContextItem(UserMessageItem.create("t1"));
     context.addContextItem(UserMessageItem.create("t2"));
