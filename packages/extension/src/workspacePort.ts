@@ -1,5 +1,6 @@
 import { rgPath } from "@vscode/ripgrep";
 import {
+  WORKSPACE_NOISE_EXCLUDE,
   resolveWorkspacePath,
   toWorkspaceRelative,
   type DirEntry,
@@ -13,6 +14,25 @@ import {
 } from "@palm-agent/agent-core";
 import * as vscode from "vscode";
 import { searchWorkspace } from "./rg";
+
+/** VS Code files.exclude + search.exclude → ripgrep `--glob '!…'` forms. */
+export function vscodeExcludeRgGlobs(): string[] {
+  const files = vscode.workspace.getConfiguration("files").get<Record<string, unknown>>("exclude") ?? {};
+  const search = vscode.workspace.getConfiguration("search").get<Record<string, unknown>>("exclude") ?? {};
+  const merged = { ...files, ...search };
+  const globs: string[] = [];
+  for (const [pattern, enabled] of Object.entries(merged)) {
+    if (enabled !== true) {
+      continue;
+    }
+    const bare = pattern.startsWith("!") ? pattern.slice(1) : pattern;
+    if (!bare) {
+      continue;
+    }
+    globs.push(`!${bare}`);
+  }
+  return globs;
+}
 
 function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -128,7 +148,7 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       if (!root) {
         throw new Error("No workspace folder open");
       }
-      return searchWorkspace(rgPath, query, root, glob);
+      return searchWorkspace(rgPath, query, root, glob, vscodeExcludeRgGlobs());
     },
 
     async findFiles(nameOrGlob: string, limit = 20) {
@@ -138,11 +158,7 @@ export function createVsCodeWorkspacePort(): WorkspacePort {
       }
       const raw = nameOrGlob.replaceAll("\\", "/").replace(/^\.\//, "");
       const glob = raw.includes("/") || raw.includes("*") ? raw : `**/${raw}`;
-      const uris = await vscode.workspace.findFiles(
-        glob,
-        "**/{node_modules,dist,out,.git}/**",
-        limit,
-      );
+      const uris = await vscode.workspace.findFiles(glob, WORKSPACE_NOISE_EXCLUDE, limit);
       return uris.map((uri) => toWorkspaceRelative(root, uri.fsPath));
     },
 

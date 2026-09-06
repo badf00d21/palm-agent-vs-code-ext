@@ -181,9 +181,11 @@ body {
 
 .tool-locations button {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: baseline;
   width: 100%;
+  max-width: 100%;
   text-align: left;
   background: none;
   border: none;
@@ -203,19 +205,24 @@ body {
 }
 
 .tool-location-where {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
   color: var(--vscode-textLink-foreground);
   font-family: var(--vscode-editor-font-family, monospace);
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .tool-location-text {
-  flex: 1 1 auto;
+  flex: 1 1 100%;
   min-width: 0;
+  max-width: 100%;
   opacity: 0.7;
   font-family: var(--vscode-editor-font-family, monospace);
-  white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .location-link {
@@ -228,6 +235,10 @@ body {
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  max-width: 100%;
+  text-align: left;
 }
 
 .location-link:hover {
@@ -252,14 +263,112 @@ body {
 }
 
 .msg-assistant .md pre {
-  margin: 0.4em 0;
+  margin: 0;
   padding: 8px;
   overflow: auto;
   font-family: var(--vscode-editor-font-family);
   font-size: 12px;
+  background: transparent;
+  border: none;
+}
+
+.code-block {
+  position: relative;
+  margin: 0.4em 0;
+  padding: 8px;
+  padding-top: 28px;
+  overflow: auto;
   background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
   border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
   border-radius: 4px;
+}
+
+.code-block-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+  font-size: 11px;
+  padding: 2px 6px;
+  opacity: 0.75;
+}
+
+.code-block-copy:hover:not(:disabled) {
+  opacity: 1;
+  text-decoration: none;
+}
+
+/* highlight.js tokens — map to VS Code theme roles, not a fixed palette. */
+.hljs {
+  color: var(--vscode-editor-foreground);
+  background: transparent;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+  color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-textLink-foreground));
+}
+
+.hljs-string,
+.hljs-doctag,
+.hljs-regexp,
+.hljs-template-tag,
+.hljs-template-variable {
+  color: var(--vscode-symbolIcon-stringForeground, var(--vscode-charts-green, var(--vscode-debugTokenExpression-string)));
+}
+
+.hljs-number,
+.hljs-bullet {
+  color: var(--vscode-symbolIcon-numberForeground, var(--vscode-charts-orange, var(--vscode-debugTokenExpression-number)));
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: var(--vscode-symbolIcon-functionForeground, var(--vscode-charts-yellow));
+}
+
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-title.class_ {
+  color: var(--vscode-symbolIcon-classForeground, var(--vscode-charts-purple));
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-params,
+.hljs-property {
+  color: var(--vscode-symbolIcon-variableForeground, var(--vscode-editor-foreground));
+}
+
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-name,
+.hljs-tag {
+  color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-textLink-foreground));
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: var(--vscode-descriptionForeground);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
 }
 
 .msg-assistant .md code {
@@ -311,8 +420,10 @@ body {
 .review-file-static {
   display: block;
   width: 100%;
+  max-width: 100%;
   padding: 2px 0;
   text-align: left;
+  overflow-wrap: anywhere;
   word-break: break-all;
 }
 

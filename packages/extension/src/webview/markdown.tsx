@@ -1,7 +1,9 @@
 import { Component, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { isSafeMarkdownUrl } from "../safeUrl";
+import { CodeBlock } from "./CodeBlock";
 import { LOCATION_SCHEME, linkifyLocations, parseLocationHref } from "./locations";
 
 export { isSafeMarkdownUrl };
@@ -39,6 +41,7 @@ export function AssistantMarkdown({
       <div className="md">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight]}
           // Our own scheme is not a real protocol, so the default sanitiser
           // strips it before the link renderer ever sees it. Let just that one
           // through; every other url keeps the library's sanitising.
@@ -46,6 +49,7 @@ export function AssistantMarkdown({
             url.startsWith(LOCATION_SCHEME) ? url : defaultUrlTransform(url)
           }
           components={{
+            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
             a: ({ href, children }) => {
               const location = href ? parseLocationHref(href) : null;
               if (location) {

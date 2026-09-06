@@ -17,6 +17,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private readonly host: SessionHost;
   private post: ((event: ExtToWebview) => void) | undefined;
+  private view: vscode.WebviewView | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -26,6 +27,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.view = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist", "webview")],
@@ -34,10 +36,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     const post = (event: ExtToWebview) => {
       void webviewView.webview.postMessage(event);
+      this.maybeBadgeOnTurnEnd(event);
     };
 
     this.post = post;
     this.host.session.setSink(post);
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        this.clearBadge();
+      }
+    });
     webviewView.webview.onDidReceiveMessage((message: WebviewToExt) => {
       void this.routeMessage(message, post);
     });
@@ -49,7 +57,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     this.host.store.clear();
     this.host.session.reset();
+    this.clearBadge();
     this.post?.({ type: "session_cleared" });
+  }
+
+  /** Shown on the activity-bar / view icon when a turn ends while the chat is hidden. */
+  private maybeBadgeOnTurnEnd(event: ExtToWebview): void {
+    if (event.type !== "done" && event.type !== "error") {
+      return;
+    }
+    if (!this.view || this.view.visible) {
+      return;
+    }
+    this.view.badge = {
+      value: 1,
+      tooltip: event.type === "error" ? "Palm Agent needs attention" : "Palm Agent finished a reply",
+    };
+  }
+
+  private clearBadge(): void {
+    if (this.view) {
+      this.view.badge = undefined;
+    }
   }
 
   private async routeMessage(

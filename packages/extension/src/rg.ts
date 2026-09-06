@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { toWorkspaceRelative, type SearchHit } from "@palm-agent/agent-core";
+import {
+  toWorkspaceRelative,
+  workspaceNoiseRgGlobs,
+  type SearchHit,
+} from "@palm-agent/agent-core";
 
 const RG_TIMEOUT_MS = 30_000;
 
@@ -8,14 +12,22 @@ const RG_TIMEOUT_MS = 30_000;
  * Run ripgrep over the workspace. The explicit "." search path is load-bearing:
  * without it rg sees a piped stdin and reads that instead of the directory —
  * the pipe never closes, so the tool call hangs forever.
+ *
+ * Always skips workspace noise (node_modules, target, .venv, …) and any extra
+ * exclude globs (typically from VS Code files.exclude / search.exclude).
+ * Still respects .gitignore via ripgrep defaults.
  */
 export function searchWorkspace(
   bin: string,
   query: string,
   cwd: string,
   glob?: string,
+  extraExcludeGlobs: string[] = [],
 ): Promise<SearchHit[]> {
   const args = ["--json", "--max-count", "50"];
+  for (const exclude of [...workspaceNoiseRgGlobs(), ...extraExcludeGlobs]) {
+    args.push("--glob", exclude);
+  }
   if (glob) {
     args.push("--glob", glob);
   }

@@ -31,11 +31,19 @@ describe("AssistantMarkdown", () => {
     );
   }
 
-  it("renders bold and a fenced code block", () => {
-    const html = render("**x**\n\n```\ncode\n```");
+  it("renders bold and a fenced code block with a copy control", () => {
+    const html = render("**x**\n\n```ts\nconst n = 1;\n```");
     expect(html).toContain("<strong>x</strong>");
+    expect(html).toContain('class="code-block"');
+    expect(html).toContain("Copy");
     expect(html).toContain("<pre>");
-    expect(html).toContain("code");
+    expect(html).toContain('hljs-keyword">const');
+    expect(html).toContain('hljs-number">1');
+  });
+
+  it("highlights a fenced language block", () => {
+    const html = render("```ts\nconst n = 1;\n```");
+    expect(html).toMatch(/hljs|language-ts|language-typescript/);
   });
 
   it("renders a mentioned location as a clickable button", () => {
