@@ -1,4 +1,6 @@
+
 # Palm Agent
+
 
 An in-editor coding agent for VS Code, built on the [Mozaik](https://github.com/jigjoy-ai)
 participant-on-bus runtime.
@@ -27,6 +29,12 @@ answered by concurrent read-only workers. See below.
 
 **The core is editor-free.** `packages/agent-core` has zero `import "vscode"`,
 so the same loop can run outside the extension host later.
+
+
+
+P.S. We also have this cool orb <img src="docs/media/status-orb.svg" alt="Palm Agent status orb" width="32" height="32" align="right" />
+
+
 
 ---
 
