@@ -70,4 +70,23 @@ describe("AgenticEnvironment", () => {
     environment.deliverSemanticEvent(agent, createSemanticEvent("assistant_narration", { text: "hi" }, agent.getId()));
     expect(types).toEqual(["assistant_narration"]);
   });
+
+  it("exposes Mozaik DefaultFunctionCallRunner via getFunctionCallRunner", async () => {
+    const environment = new AgenticEnvironment();
+    const runner = environment.getFunctionCallRunner();
+    const tool = {
+      name: "echo",
+      description: "echo",
+      strict: true,
+      type: "function" as const,
+      parameters: { type: "object", properties: {}, required: [] },
+      invoke: async () => "hello\nworld",
+    };
+    const item = await runner.run(
+      FunctionCallItem.rehydrate({ callId: "c1", name: "echo", args: "{}" }),
+      tool,
+    );
+    expect(item.callId).toBe("c1");
+    expect(item.output.text).toBe("hello\nworld");
+  });
 });

@@ -4,6 +4,7 @@ import { AgenticEnvironment, BaseParticipant } from "../runtime/environment.js";
 import type { ExtToWebview } from "@palm-agent/shared";
 import type { CompactBudget } from "../context/compact.js";
 import { loadWorkspaceInstructions } from "../context/instructions.js";
+import type { ChatCompletionFetch } from "../model/local-inference.js";
 import type { ModelConfig } from "../model/config.js";
 import { EditorAgent } from "../participants/editor-agent.js";
 import { UIBridge } from "../participants/ui-bridge.js";
@@ -47,6 +48,7 @@ function inferenceTimedOut(): string {
 export interface CreateSessionOptions {
   mozaikApiKey?: string;
   mozaikCloudEndpoint?: string;
+  fetchImpl?: ChatCompletionFetch;
 }
 
 export function createAgentSession(
@@ -167,6 +169,7 @@ export function createAgentSession(
       model: config.model,
       tools,
       getSignal: () => turnAbort?.signal,
+      fetchImpl: options.fetchImpl,
       // Research is model and I/O time, not human time, so the idle timer must
       // keep running — but it has to be bumped on every worker step or a run
       // past IDLE_TIMEOUT_MS would be killed as a stall.
@@ -226,6 +229,7 @@ export function createAgentSession(
       trace,
       getBudget,
       config.maxOutputTokens,
+      options.fetchImpl,
     );
     ui = new UIBridge(() => sink);
     agent.join(environment);

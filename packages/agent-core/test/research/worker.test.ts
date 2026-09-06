@@ -1,4 +1,4 @@
-import type { Tool } from "@mozaik-ai/core";
+import { FunctionCallItem, FunctionCallOutputItem, type Tool } from "@mozaik-ai/core";
 import { describe, expect, it, vi } from "vitest";
 import { AgenticEnvironment } from "../../src/runtime/environment.js";
 import type { ChatCompletionFetch } from "../../src/model/local-inference.js";
@@ -120,6 +120,25 @@ function setup(tools: Tool[], fetchImpl: ChatCompletionFetch) {
 }
 
 describe("ResearchWorkerAgent", () => {
+  it("runs tools through Mozaik's runner and normalizes empty args", async () => {
+    const tool = readOnlyTool("search", vi.fn(async () => "direct output"));
+    const { environment, agent, done } = setup([tool], async () => sseText("done"));
+    const runner = environment.getFunctionCallRunner();
+    const run = vi
+      .spyOn(runner, "run")
+      .mockResolvedValue(FunctionCallOutputItem.create("call_empty", "runner output"));
+
+    agent.onFunctionCall(
+      FunctionCallItem.rehydrate({ callId: "call_empty", name: "search", args: "" }),
+    );
+
+    await vi.waitFor(() => expect(done).toHaveBeenCalledWith("done"));
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0]?.[0].args).toBe("{}");
+    expect(run.mock.calls[0]?.[1]).toBe(tool);
+    expect(tool.invoke).not.toHaveBeenCalled();
+  });
+
   it("calls a read-only tool then finishes with the model's final answer", async () => {
     let call = 0;
     const fetchImpl: ChatCompletionFetch = async () => {

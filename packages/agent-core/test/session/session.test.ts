@@ -1,9 +1,11 @@
 import type { ExtToWebview } from "@palm-agent/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import type { ChatCompletionFetch } from "../../src/model/local-inference.js";
 import type { WorkspacePort } from "../../src/workspace/port.js";
 import { createAgentSession } from "../../src/session/session.js";
 
 const FILE_CONTENTS = "export const echo = true;\n";
+const fetchImpl: ChatCompletionFetch = (url, init) => globalThis.fetch(url, init);
 
 function fakePort(overrides: Partial<WorkspacePort> = {}): WorkspacePort {
   return {
@@ -54,6 +56,8 @@ describe("createAgentSession inference failures", () => {
       { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
       () => undefined,
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     await session.startTurn("hello");
@@ -82,6 +86,8 @@ describe("createAgentSession inference failures", () => {
       { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
       () => undefined,
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     await session.startTurn("one");
@@ -104,6 +110,8 @@ describe("createAgentSession inference failures", () => {
       { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
       (event) => events.push(event),
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     await session.startTurn("hello");
@@ -150,6 +158,8 @@ describe("createAgentSession inference failures", () => {
         }
       },
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     await session.startTurn("pick a framework");
@@ -192,6 +202,8 @@ describe("createAgentSession inference failures", () => {
         }
       },
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     // Without releasing the pending promise this never settles.
@@ -211,6 +223,8 @@ describe("createAgentSession inference failures", () => {
       { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
       (event) => events.push(event),
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     await session.startTurn("hello");
@@ -234,6 +248,8 @@ describe("createAgentSession inference failures", () => {
       },
       (event) => events.push(event),
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     const started = Date.now();
@@ -289,6 +305,8 @@ describe("createAgentSession inference failures", () => {
       },
       (event) => events.push(event),
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     await session.startTurn("what is in echo.ts?");
@@ -340,6 +358,8 @@ describe("createAgentSession inference failures", () => {
       },
       (event) => events.push(event),
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
 
     const running = session.startTurn("hello");
@@ -368,6 +388,8 @@ describe("createAgentSession inference failures", () => {
       { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
       () => undefined,
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
     await session.startTurn("first");
     session.reset();
@@ -399,6 +421,8 @@ describe("createAgentSession inference failures", () => {
       { baseUrl: "http://localhost:11434/v1", model: "gemma4:12b", apiKey: "not-needed" },
       () => undefined,
       { merge: (files) => ({ id: "rev_test", paths: files.map((f) => f.path) }) },
+      undefined,
+      { fetchImpl },
     );
     const running = session.startTurn("hello");
     expect(session.busy).toBe(true);

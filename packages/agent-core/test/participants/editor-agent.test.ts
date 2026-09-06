@@ -11,6 +11,7 @@ import { AgenticEnvironment } from "../../src/runtime/environment.js";
 import type { ExtToWebview } from "@palm-agent/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STUB_TEXT } from "../../src/context/compact.js";
+import { DEFAULT_MODEL } from "../../src/model/config.js";
 import { EditorAgent, MAX_INFERENCE_STEPS, WIND_DOWN_STEPS } from "../../src/participants/editor-agent.js";
 import { UIBridge } from "../../src/participants/ui-bridge.js";
 
@@ -56,13 +57,19 @@ function setup(tools: Tool[]) {
     environment,
     context,
     tools,
-    "gemma4:12b",
+    DEFAULT_MODEL,
     () => {
       state.idle = true;
     },
     (message) => {
       state.failed = message;
     },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    globalThis.fetch,
   );
   agent.join(environment);
   agent.markActive(environment);
@@ -314,8 +321,10 @@ describe("EditorAgent tool failure feedback", () => {
     await vi.waitFor(() => {
       expect(bodies).toHaveLength(1);
     });
-    expect(toolOutput(bodies[0]!)?.content).toBe("Error: disk exploded");
-    expect(toolOutput(bodies[0]!)?.content).not.toMatch(/Cannot reach Ollama/);
+    const content = toolOutput(bodies[0]!)?.content;
+    expect(content).toMatch(/^Error(?::| calling tool:)/);
+    expect(content).toContain("disk exploded");
+    expect(content).not.toMatch(/Cannot reach Ollama/);
     expect(state.failed).toBeUndefined();
   });
 
@@ -330,7 +339,9 @@ describe("EditorAgent tool failure feedback", () => {
     await vi.waitFor(() => {
       expect(bodies).toHaveLength(1);
     });
-    expect(toolOutput(bodies[0]!)?.content).toBe(`Error: ${long.slice(0, 400)}`);
+    const content = toolOutput(bodies[0]!)?.content;
+    expect(content).toMatch(/^Error(?::| calling tool:)/);
+    expect(content).toContain(long.slice(0, 400));
   });
 
   it("delivers multiline tool output raw, without JSON escaping", async () => {
@@ -380,7 +391,7 @@ describe("EditorAgent tool failure feedback", () => {
       environment,
       context,
       [echoTool("x")],
-      "gemma4:12b",
+      DEFAULT_MODEL,
       () => undefined,
       () => undefined,
     );
@@ -408,7 +419,7 @@ describe("EditorAgent tool failure feedback", () => {
       environment,
       context,
       [echoTool("x")],
-      "gemma4:12b",
+      DEFAULT_MODEL,
       () => undefined,
       () => undefined,
       undefined,

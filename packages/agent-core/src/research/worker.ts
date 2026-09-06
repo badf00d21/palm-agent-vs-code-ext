@@ -137,10 +137,13 @@ export class ResearchWorkerAgent extends BaseParticipant {
     if (this.isStale()) {
       return;
     }
+    const runnableItem = item.args.trim()
+      ? item
+      : FunctionCallItem.rehydrate({ callId: item.callId, name: item.name, args: "{}" });
     this.callbacks.onActivity(describeToolCall(item.name, item.args));
     this.pendingCalls.add(item.callId);
-    this.context.addContextItem(item);
-    void this.invokeTool(item);
+    this.context.addContextItem(runnableItem);
+    void this.invokeTool(runnableItem);
   }
 
   override onFunctionCallOutput(item: FunctionCallOutputItem): void {
@@ -192,12 +195,20 @@ export class ResearchWorkerAgent extends BaseParticipant {
   }
 
   private async invokeTool(item: FunctionCallItem): Promise<void> {
-    const output = await this.runTool(item);
+    const guarded = this.guardTool(item);
+    let outputItem: FunctionCallOutputItem;
+    if (guarded !== null) {
+      outputItem = FunctionCallOutputItem.create(item.callId, guarded);
+    } else {
+      const tool = this.tools.find((candidate) => candidate.name === item.name)!;
+      try {
+        outputItem = await this.environment.getFunctionCallRunner().run(item, tool);
+      } catch (error) {
+        outputItem = FunctionCallOutputItem.create(item.callId, `Error: ${sliceError(error)}`);
+      }
+    }
     try {
-      this.environment.deliverFunctionCallOutput(
-        this,
-        FunctionCallOutputItem.create(item.callId, output),
-      );
+      this.environment.deliverFunctionCallOutput(this, outputItem);
     } catch (error) {
       this.pendingCalls.delete(item.callId);
       if (!this.isStale()) {
@@ -206,7 +217,7 @@ export class ResearchWorkerAgent extends BaseParticipant {
     }
   }
 
-  private async runTool(item: FunctionCallItem): Promise<string> {
+  private guardTool(item: FunctionCallItem): string | null {
     const tool = this.tools.find((t) => t.name === item.name);
     if (!tool) {
       const names = this.tools.map((t) => t.name).join(", ");
@@ -221,18 +232,12 @@ export class ResearchWorkerAgent extends BaseParticipant {
       );
     }
     this.callCounts.set(signature, ran + 1);
-    let args: unknown;
     try {
-      args = item.args.trim() ? JSON.parse(item.args) : {};
+      JSON.parse(item.args);
     } catch (error) {
       return `Error: Tool arguments are not valid JSON (${sliceError(error)}).`;
     }
-    try {
-      const result: unknown = await tool.invoke(args);
-      return typeof result === "string" ? result : (JSON.stringify(result) ?? "");
-    } catch (error) {
-      return `Error: ${sliceError(error)}`;
-    }
+    return null;
   }
 
   private run(): void {

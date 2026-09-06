@@ -274,7 +274,7 @@ function applySseText(
   }
 }
 
-function promote(
+export function promote(
   acc: AssembledCompletion,
   mode: "prose" | "tool" | "unknown",
   contentDelta: string,
