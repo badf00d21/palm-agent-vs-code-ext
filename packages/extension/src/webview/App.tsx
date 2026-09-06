@@ -3,6 +3,7 @@ import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
 import {
   applyExtMessage,
   dockedReviews,
+  reviewDockSummary,
   shouldClearBusy,
   transcriptLines,
   type ChatLine,
@@ -12,6 +13,7 @@ import { AssistantMarkdown, isPlainErrorText } from "./markdown";
 import { QuestionCard } from "./QuestionCard";
 import { ResearchCard } from "./ResearchCard";
 import { ReviewCard } from "./ReviewCard";
+import { StatusOrb } from "./StatusOrb";
 import { getVsCodeApi } from "./vscode";
 
 function roleLabel(role: ChatLine["role"]): string {
@@ -85,11 +87,13 @@ export function App() {
   const [hint, setHint] = useState("");
   const [highlight, setHighlight] = useState(0);
   const [context, setContext] = useState<{ used: number; max: number | null } | null>(null);
+  const [reviewExpanded, setReviewExpanded] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const vscodeRef = useRef(getVsCodeApi());
   const suggestTimer = useRef<number | undefined>(undefined);
   const pendingSuggest = useRef<string | null>(null);
+  const prevPendingCount = useRef(0);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtToWebview>) => {
@@ -232,9 +236,22 @@ export function App() {
   // generic "waiting for reply" bubble under it would be redundant, not
   // reassuring.
   const reviews = dockedReviews(messages);
+  const pendingReviews = reviews.filter((review) => review.status === "pending");
+  const hasPendingReview = pendingReviews.length > 0;
+  const dockSummary = reviewDockSummary(reviews);
   const transcript = transcriptLines(messages);
   const lastLine = transcript[transcript.length - 1];
   const researchInFlight = lastLine?.role === "research" && lastLine.status === "running";
+  const showOrbBusy =
+    busy && lastLine?.role !== "assistant" && !awaitingAnswer && !researchInFlight;
+
+  useEffect(() => {
+    const count = pendingReviews.length;
+    if (prevPendingCount.current === 0 && count > 0) {
+      setReviewExpanded(true);
+    }
+    prevPendingCount.current = count;
+  }, [pendingReviews.length]);
 
   const shownSuggestions =
     suggestQuery && suggestQuery.length > 0
@@ -248,17 +265,32 @@ export function App() {
 
   return (
     <div className="app">
-      {reviews.length > 0 ? (
+      {hasPendingReview ? (
         <div className="review-dock" aria-label="Review">
-          {reviews.map((review) => (
-            <article key={review.id} className="msg msg-review" aria-label="Review">
-              <ReviewCard message={review} postMessage={postMessage} />
-            </article>
-          ))}
+          {reviewExpanded ? (
+            <div className="review-dock-body">
+              {pendingReviews.map((review) => (
+                <article key={review.id} className="msg msg-review" aria-label="Review">
+                  <ReviewCard message={review} postMessage={postMessage} />
+                </article>
+              ))}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="review-dock-summary"
+            aria-expanded={reviewExpanded}
+            onClick={() => setReviewExpanded((value) => !value)}
+          >
+            <span>{dockSummary.label}</span>
+            <span className="review-dock-chevron" aria-hidden="true">
+              {reviewExpanded ? "▴" : "▾"}
+            </span>
+          </button>
         </div>
       ) : null}
       <div className="messages" ref={listRef}>
-        {transcript.length === 0 && reviews.length === 0 && !busy ? (
+        {transcript.length === 0 && !hasPendingReview && !busy ? (
           <p className="empty">
             Ask about a file in this workspace.{"\n"}
             Type @ to mention a path.
@@ -293,7 +325,7 @@ export function App() {
                   </span>
                   <span>{message.text}</span>
                 </p>
-              ) : (
+              ) : message.role === "review" ? null : (
                 <p>{message.text}</p>
               )}
               {(message.role === "tool" || message.role === "status") &&
@@ -320,25 +352,25 @@ export function App() {
             </article>
           ))
         )}
-        {busy && lastLine?.role !== "assistant" && !awaitingAnswer && !researchInFlight ? (
-          <article
-            className="msg msg-assistant is-waiting"
-            aria-label="Agent"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <p className="waiting-line">
-              <span className="waiting-dots" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </span>
-              {waitSeconds < 8
-                ? "Waiting for reply"
-                : `Loading model / thinking… ${waitSeconds}s`}
-            </p>
-          </article>
-        ) : null}
+        <div className="messages-status">
+          {showOrbBusy ? (
+            <article
+              className="msg msg-assistant is-waiting"
+              aria-label="Agent"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <p className="waiting-line">
+                <StatusOrb busy />
+                {waitSeconds < 8
+                  ? "Waiting for reply"
+                  : `Loading model / thinking… ${waitSeconds}s`}
+              </p>
+            </article>
+          ) : (
+            <StatusOrb busy={false} />
+          )}
+        </div>
       </div>
       <form
         className="composer"
