@@ -42,7 +42,7 @@ function idleTimedOut(): string {
 }
 
 function inferenceTimedOut(): string {
-  return `Ollama did not finish in ${INFERENCE_TIMEOUT_MS / 1000}s. If the model is loading into VRAM, wait and retry, or press Stop.`;
+  return `The model did not finish in ${INFERENCE_TIMEOUT_MS / 1000}s. Send again, or press Stop.`;
 }
 
 export interface CreateSessionOptions {
@@ -166,7 +166,7 @@ export function createAgentSession(
   tools.push(
     createResearchTool({
       getEnvironment: () => environment,
-      model: config.model,
+      getModel: () => config.model,
       tools,
       getSignal: () => turnAbort?.signal,
       fetchImpl: options.fetchImpl,
@@ -221,14 +221,14 @@ export function createAgentSession(
       environment,
       context,
       tools,
-      config.model,
+      () => config.model,
       (fromGeneration) => finish(fromGeneration, { type: "done" }),
       (message, fromGeneration) => finish(fromGeneration, { type: "error", message }),
       (fromGeneration) => bumpIdleTimer(fromGeneration),
       (fromGeneration) => bumpInferenceTimer(fromGeneration),
       trace,
       getBudget,
-      config.maxOutputTokens,
+      () => config.maxOutputTokens,
       options.fetchImpl,
     );
     ui = new UIBridge(() => sink);

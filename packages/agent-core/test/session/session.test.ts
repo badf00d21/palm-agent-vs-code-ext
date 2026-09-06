@@ -259,7 +259,7 @@ describe("createAgentSession inference failures", () => {
     expect(events).toEqual([
       {
         type: "error",
-        message: "Cannot reach Ollama at http://localhost:11434/v1. Is it running?",
+        message: "Cannot reach the model endpoint at http://localhost:11434/v1. Check your connection and API key.",
       },
     ]);
     expect(session.busy).toBe(false);

@@ -1,13 +1,15 @@
 import {
   createAgentSession,
-  DEFAULT_BASE_URL,
+  DEEPSEEK_BASE_URL,
   DEFAULT_MAX_OUTPUT_TOKENS,
   DEFAULT_MODEL,
+  isDeepSeekModel,
   type AgentSession,
   type ModelConfig,
   type WorkspacePort,
 } from "@palm-agent/agent-core";
 import { readMozaikCloudOptions } from "./loadEnv";
+import { getDeepseekApiKey } from "./deepseekAuth";
 import type { ExtToWebview } from "@palm-agent/shared";
 import * as vscode from "vscode";
 import { applyFiles } from "./applyFiles";
@@ -16,26 +18,43 @@ import { reportProblemsAfterApply } from "./problems";
 import { createReviewStore, type ReviewStore } from "./reviewStore";
 import { createVsCodeWorkspacePort } from "./workspacePort";
 
-export function readModelConfig(): ModelConfig {
+export const MISSING_DEEPSEEK_KEY_MESSAGE =
+  "DeepSeek API key is missing. Run “Palm Agent: Set DeepSeek API Key”, or set palmAgent.deepseekApiKey in Settings.";
+
+export async function readModelConfig(
+  secrets: vscode.SecretStorage,
+): Promise<ModelConfig> {
   const cfg = vscode.workspace.getConfiguration("palmAgent");
+  const rawModel = cfg.get<string>("model", DEFAULT_MODEL);
+  const model = isDeepSeekModel(rawModel) ? rawModel : DEFAULT_MODEL;
   return {
-    baseUrl: cfg.get("ollamaBaseUrl", DEFAULT_BASE_URL),
-    model: cfg.get("model", DEFAULT_MODEL),
-    apiKey: process.env.OPENAI_API_KEY ?? "",
+    baseUrl: DEEPSEEK_BASE_URL,
+    model,
+    apiKey: await getDeepseekApiKey(secrets),
     maxOutputTokens: cfg.get("maxOutputTokens", DEFAULT_MAX_OUTPUT_TOKENS),
   };
 }
 
-export function createSessionHost(log?: {
-  appendLine(line: string): void;
-}): { session: AgentSession; store: ReviewStore; port: WorkspacePort } {
+export function createSessionHost(
+  context: vscode.ExtensionContext,
+  log?: { appendLine(line: string): void },
+): { session: AgentSession; store: ReviewStore; port: WorkspacePort } {
   const port = createVsCodeWorkspacePort();
   const trace = (line: string): void => log?.appendLine(`[agent] ${line}`);
   let rawSink: (event: ExtToWebview) => void = () => undefined;
+
+  /** Mutable config object — refreshed before each turn so Settings/Secret Storage apply live. */
+  const modelConfig: ModelConfig = {
+    baseUrl: DEEPSEEK_BASE_URL,
+    model: DEFAULT_MODEL,
+    apiKey: "",
+    maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+  };
+
   const contextWindow = createContextWindow({
     fetchImpl: fetch,
-    baseUrl: () => readModelConfig().baseUrl,
-    model: () => readModelConfig().model,
+    baseUrl: () => modelConfig.baseUrl,
+    model: () => modelConfig.model,
   });
   let session!: AgentSession;
   const emit = (event: ExtToWebview): void => {
@@ -53,7 +72,6 @@ export function createSessionHost(log?: {
   };
   const store = createReviewStore({
     emit,
-    // Buffer-aware, so the staleness check compares against what the human sees.
     readFile: (path) => port.readFile(path),
     exists: (path) => port.exists(path),
     applyFiles,
@@ -63,18 +81,39 @@ export function createSessionHost(log?: {
   });
   session = createAgentSession(
     port,
-    readModelConfig(),
+    modelConfig,
     emit,
     store,
     trace,
     readMozaikCloudOptions(),
   );
+
+  const refreshConfig = async (): Promise<ModelConfig> => {
+    const next = await readModelConfig(context.secrets);
+    modelConfig.baseUrl = next.baseUrl;
+    modelConfig.model = next.model;
+    modelConfig.apiKey = next.apiKey;
+    modelConfig.maxOutputTokens = next.maxOutputTokens;
+    return modelConfig;
+  };
+
+  void refreshConfig().catch((error) => {
+    trace(`config load failed: ${error instanceof Error ? error.message : String(error)}`);
+  });
+
   return {
     session: {
       get busy() {
         return session.busy;
       },
-      startTurn: (text) => session.startTurn(text),
+      async startTurn(text) {
+        const config = await refreshConfig();
+        if (!config.apiKey.trim()) {
+          emit({ type: "error", message: MISSING_DEEPSEEK_KEY_MESSAGE });
+          return;
+        }
+        return session.startTurn(text);
+      },
       cancel: () => session.cancel(),
       reset: () => session.reset(),
       setLastUsed: (used) => session.setLastUsed(used),

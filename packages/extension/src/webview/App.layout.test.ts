@@ -39,4 +39,19 @@ describe("status orb layout", () => {
     expect(rule(".status-orb-inner")).toContain("transform-origin: top left");
     expect(statusOrb).toContain('className="status-orb-inner"');
   });
+
+  it("uses a unique mask id per instance and supports a hover title", () => {
+    expect(statusOrb).toContain("useId");
+    expect(statusOrb).toContain("status-orb-clip-");
+    expect(statusOrb).toContain("title?: string");
+    expect(statusOrb).toContain("title={title}");
+    expect(statusOrb).toContain("status-orb-mask");
+  });
+
+  it("lays out research worker orbs in a row", () => {
+    expect(rule(".status-orb-row")).toContain("display: inline-flex");
+    expect(app).toContain("showResearchOrbs");
+    expect(app).toContain("researchWorkers.map");
+    expect(app).toContain("title={worker.question}");
+  });
 });

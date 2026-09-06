@@ -8,9 +8,9 @@ export const INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md"] as const;
 
 /**
  * Instructions sit ahead of the first user message, which compactContext never
- * trims, so every character is permanent overhead for the whole session. At the
- * 16k num_ctx a local model runs with, 8000 characters is roughly 2k tokens —
- * enough for a normal AGENTS.md, small enough to leave the turn room to work.
+ * trims, so every character is permanent overhead for the whole session. 12000
+ * characters is roughly 3k tokens — enough for a normal AGENTS.md, and small
+ * enough to stay affordable once the same prefix is resent every turn.
  */
 export const INSTRUCTIONS_CHAR_LIMIT = 12000;
 

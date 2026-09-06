@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
 import { ChatViewProvider } from "./chatViewProvider";
+import {
+  clearDeepseekApiKey,
+  promptAndStoreDeepseekApiKey,
+} from "./deepseekAuth";
 import { loadWorkspaceEnv } from "./loadEnv";
 import { createSessionHost } from "./sessionHost";
 
@@ -11,7 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
   console.log("[palm-agent] activated");
 
   try {
-    const host = createSessionHost(log);
+    const host = createSessionHost(context, log);
     const provider = new ChatViewProvider(context.extensionUri, host);
     const proposedChange = new vscode.EventEmitter<vscode.Uri>();
     const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -41,6 +45,18 @@ export function activate(context: vscode.ExtensionContext): void {
       }),
       vscode.commands.registerCommand("palmAgent.newChat", () => {
         provider.newChat();
+      }),
+      vscode.commands.registerCommand("palmAgent.setDeepseekApiKey", async () => {
+        const ok = await promptAndStoreDeepseekApiKey(context.secrets);
+        if (ok) {
+          void vscode.window.showInformationMessage("DeepSeek API key saved to Secret Storage.");
+        }
+      }),
+      vscode.commands.registerCommand("palmAgent.clearDeepseekApiKey", async () => {
+        await clearDeepseekApiKey(context.secrets);
+        void vscode.window.showInformationMessage(
+          "DeepSeek API key cleared from Secret Storage. Remove palmAgent.deepseekApiKey from Settings if you set it there.",
+        );
       }),
     );
   } catch (error) {

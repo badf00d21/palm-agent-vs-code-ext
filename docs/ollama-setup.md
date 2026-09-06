@@ -1,5 +1,15 @@
 # Ollama setup za Palm Agent
 
+> **Prevaziđeno (2026-09-06).** Palm Agent više ne podržava Ollamu — provider je
+> DeepSeek (`DEEPSEEK_BASE_URL`, `palmAgent.model` je enum `deepseek-v4-flash` /
+> `deepseek-v4-pro`), a ključ ide u Secret Storage preko
+> `Palm Agent: Set DeepSeek API Key`. Za aktuelno podešavanje vidi
+> [README](../README.md).
+>
+> Tekst ispod se čuva kao zapis lokalnog perioda: rezonovanje o `num_ctx` i
+> budžetu prozora je i dalje tačno i objašnjava odakle dolaze konstante u
+> `context/compact.ts` i `context/instructions.ts`.
+
 Hardver: RTX 4070 Ti 12GB VRAM + ~100GB RAM. Ollama servira lokalni model preko Chat Completions (`http://localhost:11434/v1`); ime modela ide u zahtev kao-jeste (`palmAgent.model`, default `gemma4:12b`).
 
 ## Zašto je context length kritičan

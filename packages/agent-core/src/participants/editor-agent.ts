@@ -108,14 +108,14 @@ export class EditorAgent extends BaseParticipant {
     private readonly environment: AgenticEnvironment,
     private readonly context: ModelContext,
     private readonly tools: Tool[],
-    private readonly model: string,
+    private readonly getModel: () => string,
     private readonly onIdle: (generation: number) => void,
     private readonly onFailed: (message: string, generation: number) => void,
     private readonly onActivity?: (generation: number) => void,
     private readonly onWaitForModel?: (generation: number) => void,
     private readonly onTrace?: (line: string) => void,
     private readonly getBudget: () => CompactBudget = () => ({ max: null }),
-    private readonly maxOutputTokens?: number,
+    private readonly getMaxOutputTokens: () => number | undefined = () => undefined,
     private readonly fetchImpl?: ChatCompletionFetch,
   ) {
     super("Editor Agent", "agent");
@@ -207,7 +207,7 @@ export class EditorAgent extends BaseParticipant {
     const unreachable = /fetch|ECONNREFUSED|ENOTFOUND|network/i.test(message);
     this.onFailed(
       unreachable
-        ? `Cannot reach Ollama at ${process.env.OPENAI_BASE_URL ?? "the configured URL"}. Is it running?`
+        ? `Cannot reach the model endpoint at ${process.env.OPENAI_BASE_URL ?? "the configured URL"}. Check your connection and API key.`
         : message.slice(0, 400),
       generation,
     );
@@ -327,8 +327,8 @@ export class EditorAgent extends BaseParticipant {
     );
     void runLocalChatCompletions({
       trace: this.onTrace,
-      model: this.model,
-      maxOutputTokens: this.maxOutputTokens,
+      model: this.getModel(),
+      maxOutputTokens: this.getMaxOutputTokens(),
       tools: toolsVisibleToModel(this.tools),
       context: this.context,
       environment: this.environment,

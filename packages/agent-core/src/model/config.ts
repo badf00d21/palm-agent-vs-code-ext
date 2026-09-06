@@ -14,10 +14,21 @@ export interface ModelConfig {
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 32_000;
 
+/** DeepSeek Chat Completions endpoint (only supported provider for now). */
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+
+/** Models exposed in the VS Code setting UI for the current release. */
+export const DEEPSEEK_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro"] as const;
+export type DeepSeekModel = (typeof DEEPSEEK_MODELS)[number];
+
+export function isDeepSeekModel(model: string): model is DeepSeekModel {
+  return (DEEPSEEK_MODELS as readonly string[]).includes(model);
+}
+
 /**
  * Model name for the configured Chat Completions endpoint. The runner POSTs
  * this name as-is, so any name the provider accepts works.
  */
-export const DEFAULT_MODEL = "deepseek-v4-flash";
+export const DEFAULT_MODEL: DeepSeekModel = "deepseek-v4-flash";
 
-export const DEFAULT_BASE_URL = "https://api.deepseek.com";
+export const DEFAULT_BASE_URL = DEEPSEEK_BASE_URL;

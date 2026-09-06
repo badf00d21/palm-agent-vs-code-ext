@@ -57,7 +57,7 @@ function setup(tools: Tool[]) {
     environment,
     context,
     tools,
-    DEFAULT_MODEL,
+    () => DEFAULT_MODEL,
     () => {
       state.idle = true;
     },
@@ -311,7 +311,7 @@ describe("EditorAgent tool failure feedback", () => {
     expect(state.failed).toBeUndefined();
   });
 
-  it("feeds a thrown tool error back with the real message, not the Ollama-down string", async () => {
+  it("feeds a thrown tool error back with the real message, not the endpoint-down string", async () => {
     const { agent, state } = setup([boomTool("disk exploded")]);
 
     agent.onFunctionCall(
@@ -324,7 +324,7 @@ describe("EditorAgent tool failure feedback", () => {
     const content = toolOutput(bodies[0]!)?.content;
     expect(content).toMatch(/^Error(?::| calling tool:)/);
     expect(content).toContain("disk exploded");
-    expect(content).not.toMatch(/Cannot reach Ollama/);
+    expect(content).not.toMatch(/Cannot reach the model endpoint/);
     expect(state.failed).toBeUndefined();
   });
 
@@ -391,7 +391,7 @@ describe("EditorAgent tool failure feedback", () => {
       environment,
       context,
       [echoTool("x")],
-      DEFAULT_MODEL,
+      () => DEFAULT_MODEL,
       () => undefined,
       () => undefined,
     );
@@ -419,7 +419,7 @@ describe("EditorAgent tool failure feedback", () => {
       environment,
       context,
       [echoTool("x")],
-      DEFAULT_MODEL,
+      () => DEFAULT_MODEL,
       () => undefined,
       () => undefined,
       undefined,

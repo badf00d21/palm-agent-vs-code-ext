@@ -55,7 +55,7 @@ describe("createResearchTool", () => {
   it("requires a question", async () => {
     const tool = createResearchTool({
       getEnvironment: () => new AgenticEnvironment(),
-      model: "gemma4:12b",
+      getModel: () => "gemma4:12b",
       tools: baseTools(),
       getSignal: () => undefined,
     });
@@ -77,7 +77,7 @@ describe("createResearchTool", () => {
     let heartbeats = 0;
     const host: ResearchHost = {
       getEnvironment: () => environment,
-      model: "gemma4:12b",
+      getModel: () => "gemma4:12b",
       tools: baseTools(),
       getSignal: () => new AbortController().signal,
       fetchImpl,
@@ -123,7 +123,7 @@ describe("createResearchTool", () => {
     };
     const tool = createResearchTool({
       getEnvironment: () => environment,
-      model: "gemma4:12b",
+      getModel: () => "gemma4:12b",
       tools: baseTools(),
       getSignal: () => undefined,
       fetchImpl,
@@ -139,7 +139,7 @@ describe("createResearchTool", () => {
     controller.abort();
     const tool = createResearchTool({
       getEnvironment: () => environment,
-      model: "gemma4:12b",
+      getModel: () => "gemma4:12b",
       tools: baseTools(),
       getSignal: () => controller.signal,
       fetchImpl: async () => sseText("should not be reached"),
@@ -164,7 +164,7 @@ describe("createResearchTool", () => {
         seenEnvironments.push(environment);
         return environment;
       },
-      model: "gemma4:12b",
+      getModel: () => "gemma4:12b",
       tools: baseTools(),
       getSignal: () => signal,
       fetchImpl,

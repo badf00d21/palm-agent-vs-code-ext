@@ -847,7 +847,8 @@ body {
 
 /* -------------------------------------------------------------------- */
 /* Status orb — Uiverse young-walrus-64 (MIT, andrew-manzyk), scaled.     */
-/* Idle keeps lava motion; .is-busy adds hue colorize.                   */
+/* Idle: gray lava, motion keeps running; .is-busy switches back to the  */
+/* orange palette and adds hue colorize.                                 */
 /* -------------------------------------------------------------------- */
 
 .status-orb {
@@ -862,6 +863,14 @@ body {
   width: calc(100px * var(--size));
   height: calc(100px * var(--size));
   flex: 0 0 auto;
+}
+
+.status-orb:not(.is-busy) {
+  --color-one: #b9bec6;
+  --color-two: #4e545c;
+  --color-three: #b9bec680;
+  --color-four: #4e545c80;
+  --color-five: #b9bec640;
 }
 
 .status-orb-inner {
@@ -900,56 +909,55 @@ body {
   width: 100px;
   height: 100px;
   background: linear-gradient(180deg, var(--color-one) 30%, var(--color-two) 70%);
-  mask: url(#status-orb-clip);
-  -webkit-mask: url(#status-orb-clip);
+  /* mask url is set inline — each orb needs a unique SVG mask id */
 }
 
 .status-orb svg {
   position: absolute;
 }
 
-.status-orb svg #status-orb-clip {
+.status-orb svg .status-orb-mask {
   filter: contrast(15);
   animation: status-orb-roundness calc(var(--time-animation) / 2) linear infinite;
 }
 
-.status-orb svg #status-orb-clip polygon {
+.status-orb svg .status-orb-mask polygon {
   filter: blur(7px);
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(1) {
+.status-orb svg .status-orb-mask polygon:nth-child(1) {
   transform-origin: 75% 25%;
   transform: rotate(90deg);
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(2) {
+.status-orb svg .status-orb-mask polygon:nth-child(2) {
   transform-origin: 50% 50%;
   animation: status-orb-rotation var(--time-animation) linear infinite reverse;
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(3) {
+.status-orb svg .status-orb-mask polygon:nth-child(3) {
   transform-origin: 50% 60%;
   animation: status-orb-rotation var(--time-animation) linear infinite;
   animation-delay: calc(var(--time-animation) / -3);
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(4) {
+.status-orb svg .status-orb-mask polygon:nth-child(4) {
   transform-origin: 40% 40%;
   animation: status-orb-rotation var(--time-animation) linear infinite reverse;
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(5) {
+.status-orb svg .status-orb-mask polygon:nth-child(5) {
   transform-origin: 40% 40%;
   animation: status-orb-rotation var(--time-animation) linear infinite reverse;
   animation-delay: calc(var(--time-animation) / -2);
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(6) {
+.status-orb svg .status-orb-mask polygon:nth-child(6) {
   transform-origin: 60% 40%;
   animation: status-orb-rotation var(--time-animation) linear infinite;
 }
 
-.status-orb svg #status-orb-clip polygon:nth-child(7) {
+.status-orb svg .status-orb-mask polygon:nth-child(7) {
   transform-origin: 60% 40%;
   animation: status-orb-rotation var(--time-animation) linear infinite;
   animation-delay: calc(var(--time-animation) / -1.5);
@@ -1006,6 +1014,17 @@ body {
   min-height: 28px;
 }
 
+.status-orb-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.status-orb-row .status-orb {
+  --size: 0.18;
+}
+
 .is-waiting {
   color: var(--vscode-descriptionForeground);
 }
@@ -1023,8 +1042,12 @@ body {
     animation: none;
   }
 
-  .status-orb svg #status-orb-clip,
-  .status-orb svg #status-orb-clip polygon {
+  .status-orb-box {
+    animation: none;
+  }
+
+  .status-orb svg .status-orb-mask,
+  .status-orb svg .status-orb-mask polygon {
     animation: none !important;
   }
 }

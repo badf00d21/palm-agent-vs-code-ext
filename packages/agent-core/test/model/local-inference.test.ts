@@ -380,7 +380,7 @@ describe("runLocalChatCompletions", () => {
     expect(types).not.toContain("context_usage");
   });
 
-  it("maps fetch failure to the Ollama unreachable string", async () => {
+  it("maps fetch failure to the endpoint-unreachable string", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
 
     let failed = "";
@@ -407,10 +407,10 @@ describe("runLocalChatCompletions", () => {
       },
     });
 
-    expect(failed).toBe(`Cannot reach Ollama at ${BASE_URL}. Is it running?`);
+    expect(failed).toBe(`Cannot reach the model endpoint at ${BASE_URL}. Check your connection and API key.`);
   });
 
-  it("passes AbortSignal to fetch and maps abort to the Ollama unreachable string", async () => {
+  it("passes AbortSignal to fetch and maps abort to the endpoint-unreachable string", async () => {
     process.env.OPENAI_BASE_URL = BASE_URL;
     const controller = new AbortController();
     let seenSignal: AbortSignal | undefined;
@@ -456,7 +456,7 @@ describe("runLocalChatCompletions", () => {
 
     expect(seenSignal).toBe(controller.signal);
     expect(delivered).toBe(false);
-    expect(failed).toBe(`Cannot reach Ollama at ${BASE_URL}. Is it running?`);
+    expect(failed).toBe(`Cannot reach the model endpoint at ${BASE_URL}. Check your connection and API key.`);
   });
 
   it("treats a JSON tool call in message content as a function call", async () => {

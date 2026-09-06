@@ -1,8 +1,11 @@
-export type { ModelConfig } from "./model/config.js";
+export type { ModelConfig, DeepSeekModel } from "./model/config.js";
 export {
   DEFAULT_BASE_URL,
   DEFAULT_MAX_OUTPUT_TOKENS,
   DEFAULT_MODEL,
+  DEEPSEEK_BASE_URL,
+  DEEPSEEK_MODELS,
+  isDeepSeekModel,
 } from "./model/config.js";
 export type {
   AgentSession,

@@ -41,8 +41,8 @@ export interface ResearchSettledPayload {
 export interface ResearchHost {
   /** The bus the current turn's EditorAgent and UIBridge are joined to. */
   getEnvironment: () => AgenticEnvironment;
-  /** Model id for both the decomposition call and every worker. */
-  model: string;
+  /** Model id for both the decomposition call and every worker (live — settings can change). */
+  getModel: () => string;
   /** The full workspace tool list (same array given to EditorAgent). Filtered to a read-only subset internally — do not pre-filter. */
   tools: Tool[];
   /** The AbortSignal for the turn currently in flight, if any. */
@@ -105,7 +105,7 @@ export function createResearchTool(host: ResearchHost): Tool {
 
       const coordinatorHost: ResearchCoordinatorHost = {
         environment,
-        model: host.model,
+        model: host.getModel(),
         tools: host.tools,
         fetchImpl: host.fetchImpl,
         createId: host.createId,

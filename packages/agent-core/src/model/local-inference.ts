@@ -141,7 +141,7 @@ function providerMessage(error: unknown): string {
 
 export function formatInferenceFailure(error: unknown, baseUrl = configuredBaseUrl()): string {
   if (isNetworkError(error)) {
-    return `Cannot reach Ollama at ${baseUrl}. Is it running?`;
+    return `Cannot reach the model endpoint at ${baseUrl}. Check your connection and API key.`;
   }
   return providerMessage(error).slice(0, 400);
 }

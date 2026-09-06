@@ -227,9 +227,8 @@ export function App() {
   // under it would claim the agent is thinking when it is waiting on a person.
   const awaitingAnswer = messages.some((line) => line.role === "question" && !line.settled);
 
-  // A running research line already shows per-worker progress; stacking the
-  // generic "waiting for reply" bubble under it would be redundant, not
-  // reassuring.
+  // While research runs, show one busy orb per active worker (pending/running)
+  // with the sub-question as hover title — instead of the generic waiting bubble.
   const reviews = dockedReviews(messages);
   const pendingReviews = reviews.filter((review) => review.status === "pending");
   const hasPendingReview = pendingReviews.length > 0;
@@ -237,6 +236,13 @@ export function App() {
   const transcript = transcriptLines(messages);
   const lastLine = transcript[transcript.length - 1];
   const researchInFlight = lastLine?.role === "research" && lastLine.status === "running";
+  const researchWorkers =
+    researchInFlight && lastLine.role === "research"
+      ? lastLine.workers.filter(
+          (worker) => worker.status === "pending" || worker.status === "running",
+        )
+      : [];
+  const showResearchOrbs = researchWorkers.length > 0;
   const showOrbBusy =
     busy && lastLine?.role !== "assistant" && !awaitingAnswer && !researchInFlight;
 
@@ -347,7 +353,25 @@ export function App() {
           ))
         )}
         <div className="messages-status">
-          {showOrbBusy ? (
+          {showResearchOrbs ? (
+            <article
+              className="msg msg-assistant is-waiting"
+              aria-label="Research"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <p className="waiting-line">
+                <span className="status-orb-row" role="group" aria-label="Active research workers">
+                  {researchWorkers.map((worker) => (
+                    <StatusOrb key={worker.id} busy title={worker.question} />
+                  ))}
+                </span>
+                {waitSeconds < 8
+                  ? "Researching…"
+                  : `Researching… ${waitSeconds}s`}
+              </p>
+            </article>
+          ) : showOrbBusy ? (
             <article
               className="msg msg-assistant is-waiting"
               aria-label="Agent"
