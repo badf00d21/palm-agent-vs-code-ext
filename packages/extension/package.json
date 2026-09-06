@@ -78,10 +78,11 @@
   },
   "scripts": {
     "build": "npm run build:webview && npm run build:ext",
-    "build:ext": "node esbuild.mjs",
+    "build:ext": "node esbuild.mjs && node scripts/sync-vendor.mjs",
     "build:webview": "vite build --config vite.config.ts",
     "watch": "node esbuild.mjs --watch",
     "watch:webview": "vite build --config vite.config.ts --watch",
+    "package": "node scripts/package-vsix.mjs",
     "test": "vitest run"
   },
   "dependencies": {

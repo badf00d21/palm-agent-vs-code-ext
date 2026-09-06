@@ -5,6 +5,9 @@ out
 .env.*
 !.env.example
 *.vsix
+.vsix-staging
+.vsix-inspect
+packages/extension/vendor
 *.log
 .DS_Store
 .vite

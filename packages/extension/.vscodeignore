@@ -1,8 +1,12 @@
 src/**
+scripts/**
+vendor/**
 tsconfig.json
 vitest.config.ts
 vite.config.ts
 esbuild.mjs
 **/*.test.ts
+.vsix-staging/**
+*.vsix
 node_modules/**
 ../**
