@@ -70,6 +70,26 @@ export function dockedReviews(messages: ChatLine[]): ReviewLine[] {
   ];
 }
 
+export function reviewDockSummary(reviews: ReviewLine[]): {
+  reviewCount: number;
+  fileCount: number;
+  label: string;
+} {
+  const pending = reviews.filter((review) => review.status === "pending");
+  const reviewCount = pending.length;
+  const fileCount = pending.reduce((sum, review) => sum + review.files.length, 0);
+  if (reviewCount === 0) {
+    return { reviewCount: 0, fileCount: 0, label: "" };
+  }
+  const reviewWord = reviewCount === 1 ? "review" : "reviews";
+  const fileWord = fileCount === 1 ? "file" : "files";
+  return {
+    reviewCount,
+    fileCount,
+    label: `${reviewCount} ${reviewWord} · ${fileCount} ${fileWord}`,
+  };
+}
+
 export function transcriptLines(messages: ChatLine[]): ChatLine[] {
   return messages.filter((line) => !isReviewLine(line));
 }

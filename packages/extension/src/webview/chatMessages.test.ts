@@ -2,10 +2,76 @@ import { describe, expect, it } from "vitest";
 import {
   applyExtMessage,
   dockedReviews,
+  reviewDockSummary,
   shouldClearBusy,
   transcriptLines,
   type ChatLine,
 } from "./chatMessages";
+
+describe("reviewDockSummary", () => {
+  it("formats one pending review and one file", () => {
+    expect(
+      reviewDockSummary([
+        {
+          role: "review",
+          id: "r1",
+          files: [{ path: "a.ts", kind: "edit" }],
+          status: "pending",
+        },
+      ]),
+    ).toEqual({ reviewCount: 1, fileCount: 1, label: "1 review · 1 file" });
+  });
+
+  it("sums files across pending reviews and ignores settled", () => {
+    expect(
+      reviewDockSummary([
+        {
+          role: "review",
+          id: "r1",
+          files: [
+            { path: "a.ts", kind: "edit" },
+            { path: "b.ts", kind: "create" },
+          ],
+          status: "pending",
+        },
+        {
+          role: "review",
+          id: "r2",
+          files: [
+            { path: "c.ts", kind: "edit" },
+            { path: "d.ts", kind: "edit" },
+            { path: "e.ts", kind: "mkdir" },
+          ],
+          status: "pending",
+        },
+        {
+          role: "review",
+          id: "old",
+          files: [{ path: "z.ts", kind: "edit" }],
+          status: "kept",
+        },
+      ]),
+    ).toEqual({ reviewCount: 2, fileCount: 5, label: "2 reviews · 5 files" });
+  });
+
+  it("returns empty label when there are no pending reviews", () => {
+    expect(reviewDockSummary([])).toEqual({
+      reviewCount: 0,
+      fileCount: 0,
+      label: "",
+    });
+    expect(
+      reviewDockSummary([
+        {
+          role: "review",
+          id: "old",
+          files: [{ path: "z.ts", kind: "edit" }],
+          status: "kept",
+        },
+      ]),
+    ).toEqual({ reviewCount: 0, fileCount: 0, label: "" });
+  });
+});
 
 describe("dockedReviews", () => {
   it("docks pending reviews above settled ones and keeps them out of the transcript", () => {
