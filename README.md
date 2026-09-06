@@ -32,7 +32,9 @@ so the same loop can run outside the extension host later.
 
 
 
-P.S. We also have this cool orb <img src="docs/media/status-orb.svg" alt="Palm Agent status orb" width="32" height="32" align="right" />
+P.S. We also have this cool orb.
+
+<img src="docs/media/status-orb.svg" alt="Palm Agent status orb" width="32" height="32" align="right" />
 
 
 
