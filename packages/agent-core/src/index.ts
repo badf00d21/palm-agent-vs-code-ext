@@ -23,6 +23,7 @@ export type {
   WorkspaceSymbol,
 } from "./workspace/port.js";
 export { resolveWorkspacePath, toPosix, toWorkspaceRelative } from "./workspace/paths.js";
+export { resolveWorkspaceFilePath } from "./workspace/locate.js";
 export type { FileSuggestPlan } from "./workspace/suggest.js";
 export { planFileSuggestions, SUGGEST_EXCLUDE, SUGGEST_LIMIT } from "./workspace/suggest.js";
 export type { PendingReview, ProposedFile, ReviewHost } from "./tools/review.js";

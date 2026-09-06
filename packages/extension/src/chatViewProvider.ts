@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import {
   planFileSuggestions,
+  resolveWorkspaceFilePath,
   toWorkspaceRelative,
   type AgentSession,
   type WorkspacePort,
@@ -68,8 +69,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post({ type: "error", message: "No workspace folder open" });
           return;
         }
+        // The model cites files both as full paths and as bare names, so a click
+        // has to resolve the same way read_file does. Joining a bare name onto
+        // the workspace root points at a file that is not there.
+        const found = await resolveWorkspaceFilePath(this.host.port, message.path);
+        if ("error" in found) {
+          post({ type: "error", message: found.error });
+          return;
+        }
         try {
-          const uri = vscode.Uri.joinPath(root, message.path);
+          const uri = vscode.Uri.joinPath(root, found.path);
           const doc = await vscode.workspace.openTextDocument(uri);
           // The model counts from 1; clamp so a stale line number still opens.
           const line = Math.min(Math.max(message.line, 1), doc.lineCount) - 1;
@@ -79,8 +88,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             selection: at,
           });
           editor.revealRange(at, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-        } catch {
-          post({ type: "error", message: `Cannot open ${message.path}` });
+        } catch (error) {
+          post({
+            type: "error",
+            message: `Cannot open ${found.path}: ${error instanceof Error ? error.message : String(error)}`,
+          });
         }
         return;
       }
