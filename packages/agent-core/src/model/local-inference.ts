@@ -13,6 +13,7 @@ import { createSemanticEvent, type AgenticEnvironment } from "../runtime/environ
 import { looksLikeMalformedEditFence, parseSearchReplaceBlocks } from "../tools/edit-blocks.js";
 import { parseToolCallsFromContent, type ChatToolCall } from "./completion-parse.js";
 import { readSseChatCompletion } from "./chat-stream.js";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "./config.js";
 
 export { parseToolCallsFromContent } from "./completion-parse.js";
 
@@ -39,6 +40,8 @@ export type ChatCompletionFetch = (
 
 export interface RunLocalChatCompletionsParams {
   model: string;
+  /** Output budget for this call; defaults to DEFAULT_MAX_OUTPUT_TOKENS. */
+  maxOutputTokens?: number;
   context: ModelContext;
   tools: Tool[];
   environment: AgenticEnvironment;
@@ -57,11 +60,11 @@ export interface RunLocalChatCompletionsParams {
 }
 
 /**
- * Without a cap the model may monologue until the whole num_ctx is full
- * (observed: gemma4 burned 9k tokens on "ok, do it" and returned nothing).
- * 9192 still leaves room for a large propose_edit search+replace pair.
+ * Without a cap a model may monologue until the whole context is full (observed:
+ * gemma4 burned 9k tokens on "ok, do it" and returned nothing). The default now
+ * lives in config, because a reasoning model spends the same budget on thinking
+ * before it writes anything — see DEFAULT_MAX_OUTPUT_TOKENS.
  */
-const MAX_OUTPUT_TOKENS = 9192;
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -300,11 +303,12 @@ export async function runLocalChatCompletions(
 ): Promise<void> {
   const baseUrl = configuredBaseUrl();
   const fetchImpl = params.fetchImpl ?? fetch;
+  const maxOutputTokens = params.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
   try {
     const body: Record<string, unknown> = {
       model: params.model,
       messages: mapContextToChatMessages(params.context),
-      max_tokens: MAX_OUTPUT_TOKENS,
+      max_tokens: maxOutputTokens,
     };
     body.stream = true;
     body.stream_options = { include_usage: true };
@@ -363,8 +367,13 @@ export async function runLocalChatCompletions(
     const actionable = hasNativeTools || contentCalls > 0 || contentFences > 0;
     if (!hasNativeTools && emptyContent) {
       if (assembled.finishReason === "length") {
+        // Naming where the budget actually went matters: a reasoning model can
+        // spend all of it thinking and return no content at all, which reads as
+        // an unexplained failure unless the reasoning size is stated.
         params.onFailed(
-          "Model hit its output token limit without a usable answer. Ask again, or ask for a smaller change.",
+          assembled.reasoning.length > 0
+            ? `Model spent its whole ${maxOutputTokens}-token output budget reasoning (${assembled.reasoning.length} characters of thinking) and produced no answer. Raise palmAgent.maxOutputTokens, or ask for a smaller step.`
+            : `Model hit its ${maxOutputTokens}-token output limit without a usable answer. Ask again, or ask for a smaller change.`,
         );
       } else if (!params.onEmptyCompletion?.()) {
         // Nothing came back and no retry was scheduled. Most often the provider
@@ -382,9 +391,11 @@ export async function runLocalChatCompletions(
       // budget deliberating. Failing here keeps those tokens out of the context,
       // where in a 16k window they would crowd out every later turn. The prose
       // already streamed to the UI, so the human still sees what happened.
-      params.trace?.(`dropped ${assembled.content.length}ch of unfinished output (length cap)`);
+      params.trace?.(
+        `dropped ${assembled.content.length}ch of unfinished output (length cap, reasoning=${assembled.reasoning.length}ch)`,
+      );
       params.onFailed(
-        `Model used all ${MAX_OUTPUT_TOKENS} output tokens without reaching an answer or a tool call, so its unfinished text was dropped instead of kept as context. Ask for one concrete step, or try a smaller request.`,
+        `Model used all ${maxOutputTokens} output tokens without reaching an answer or a tool call, so its unfinished text was dropped instead of kept as context. Ask for one concrete step, or try a smaller request.`,
       );
       return;
     }
@@ -404,6 +415,9 @@ export async function runLocalChatCompletions(
           finish_reason: assembled.finishReason,
           message: {
             content: assembled.content,
+            // Carried purely so the trace reports the real split between
+            // thinking and answer; it is never added to the context.
+            reasoning_content: assembled.reasoning,
             tool_calls: assembled.toolCalls,
           },
         },

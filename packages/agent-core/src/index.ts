@@ -1,5 +1,9 @@
 export type { ModelConfig } from "./model/config.js";
-export { DEFAULT_BASE_URL, DEFAULT_MODEL } from "./model/config.js";
+export {
+  DEFAULT_BASE_URL,
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  DEFAULT_MODEL,
+} from "./model/config.js";
 export type {
   AgentSession,
   CreateSessionOptions,

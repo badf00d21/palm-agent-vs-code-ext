@@ -1,6 +1,7 @@
 import {
   createAgentSession,
   DEFAULT_BASE_URL,
+  DEFAULT_MAX_OUTPUT_TOKENS,
   DEFAULT_MODEL,
   type AgentSession,
   type ModelConfig,
@@ -21,6 +22,7 @@ export function readModelConfig(): ModelConfig {
     baseUrl: cfg.get("ollamaBaseUrl", DEFAULT_BASE_URL),
     model: cfg.get("model", DEFAULT_MODEL),
     apiKey: process.env.OPENAI_API_KEY ?? "",
+    maxOutputTokens: cfg.get("maxOutputTokens", DEFAULT_MAX_OUTPUT_TOKENS),
   };
 }
 

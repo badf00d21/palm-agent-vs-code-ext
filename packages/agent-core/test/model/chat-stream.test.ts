@@ -83,6 +83,47 @@ describe("applyChatChunk + streamMode", () => {
     });
   });
 
+  it("collects reasoning apart from content, never mixing the two", () => {
+    const acc = emptyAssembly();
+    applyChatChunk(acc, { choices: [{ delta: { reasoning_content: "thinking " } }] });
+    applyChatChunk(acc, { choices: [{ delta: { reasoning_content: "harder. " } }] });
+    applyChatChunk(acc, { choices: [{ delta: { content: "The answer." }, finish_reason: "stop" }] });
+    expect(acc.reasoning).toBe("thinking harder. ");
+    expect(acc.content).toBe("The answer.");
+  });
+
+  it("accepts the reasoning and thinking spellings too", () => {
+    const acc = emptyAssembly();
+    applyChatChunk(acc, { choices: [{ delta: { reasoning: "a" } }] });
+    applyChatChunk(acc, { choices: [{ delta: { thinking: "b" } }] });
+    expect(acc.reasoning).toBe("ab");
+  });
+
+  it("does not narrate reasoning as if it were the answer", async () => {
+    // Chain-of-thought is not a reply: it must never reach the chat bubble.
+    const body =
+      `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: "hmm" } }] })}\n\n` +
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "hi" }, finish_reason: "stop" }] })}\n\n` +
+      "data: [DONE]\n\n";
+    const deltas: string[] = [];
+    const acc = await readSseChatCompletion(
+      new Response(body, { headers: { "Content-Type": "text/event-stream" } }),
+      (text) => deltas.push(text),
+    );
+    expect(deltas).toEqual(["hi"]);
+    expect(acc.reasoning).toBe("hmm");
+  });
+
+  it("records a completion that was all reasoning and no answer", () => {
+    const acc = emptyAssembly();
+    applyChatChunk(acc, {
+      choices: [{ delta: { reasoning_content: "deliberating" }, finish_reason: "length" }],
+    });
+    expect(acc.content).toBe("");
+    expect(acc.reasoning).toBe("deliberating");
+    expect(acc.finishReason).toBe("length");
+  });
+
   it("records usage from a final chunk with empty choices", () => {
     const acc = emptyAssembly();
     applyChatChunk(acc, { choices: [{ delta: { content: "Hi" }, finish_reason: "stop" }] });

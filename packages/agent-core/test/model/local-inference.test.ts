@@ -12,6 +12,7 @@ import {
   parseToolCallsFromContent,
   runLocalChatCompletions,
 } from "../../src/model/local-inference.js";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../../src/model/config.js";
 
 const BASE_URL = "http://localhost:11434/v1";
 
@@ -223,7 +224,7 @@ describe("runLocalChatCompletions", () => {
         const body = JSON.parse(String(init?.body)) as { stream?: boolean; model: string; max_tokens: number };
         expect(body.stream).toBe(true);
         expect(body.model).toBe("deepseek-v4-pro");
-        expect(body.max_tokens).toBe(9192);
+        expect(body.max_tokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
         return sseResponse([
           { delta: { role: "assistant", content: "hello from qwen" }, finish_reason: "stop" },
         ]);
@@ -474,7 +475,55 @@ describe("runLocalChatCompletions", () => {
     });
 
     expect(delivered).toBe(false);
-    expect(failed).toMatch(/output token limit/);
+    expect(failed).toMatch(/output limit/);
+  });
+
+  it("names reasoning as the cause when it ate the whole budget", async () => {
+    // A reasoning model spends max_tokens on thinking before writing anything.
+    // Dropping those deltas made the budget look like it vanished; the failure
+    // has to say where it went or it reads as unexplained.
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    let failed = "";
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-flash",
+      context: ModelContext.create(),
+      tools: [],
+      environment: fakeEnv(),
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        failed = message;
+      },
+      fetchImpl: async () =>
+        sseResponse([
+          { delta: { reasoning_content: "Let me think about this at length. " } },
+          { delta: { reasoning_content: "Still thinking." }, finish_reason: "length" },
+        ]),
+    });
+
+    expect(failed).toMatch(/reasoning/i);
+    expect(failed).toContain("characters of thinking");
+  });
+
+  it("uses the configured output budget instead of the default", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    let seen: number | undefined;
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-flash",
+      maxOutputTokens: 64_000,
+      context: ModelContext.create(),
+      tools: [],
+      environment: fakeEnv({ deliverModelMessage: () => undefined }),
+      caller: new BaseParticipant(),
+      onFailed: () => undefined,
+      fetchImpl: async (_url, init) => {
+        seen = (JSON.parse(String(init?.body)) as { max_tokens: number }).max_tokens;
+        return sseResponse([{ delta: { content: "ok" }, finish_reason: "stop" }]);
+      },
+    });
+
+    expect(seen).toBe(64_000);
   });
 
   it("drops an unfinished ramble that hit the token cap instead of keeping it as context", async () => {

@@ -225,6 +225,7 @@ export function createAgentSession(
       (fromGeneration) => bumpInferenceTimer(fromGeneration),
       trace,
       getBudget,
+      config.maxOutputTokens,
     );
     ui = new UIBridge(() => sink);
     agent.join(environment);

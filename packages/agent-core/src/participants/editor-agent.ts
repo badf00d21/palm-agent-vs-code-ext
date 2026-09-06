@@ -112,6 +112,7 @@ export class EditorAgent extends BaseParticipant {
     private readonly onWaitForModel?: (generation: number) => void,
     private readonly onTrace?: (line: string) => void,
     private readonly getBudget: () => CompactBudget = () => ({ max: null }),
+    private readonly maxOutputTokens?: number,
   ) {
     super("Editor Agent", "agent");
   }
@@ -318,6 +319,7 @@ export class EditorAgent extends BaseParticipant {
     void runLocalChatCompletions({
       trace: this.onTrace,
       model: this.model,
+      maxOutputTokens: this.maxOutputTokens,
       tools: toolsVisibleToModel(this.tools),
       context: this.context,
       environment: this.environment,

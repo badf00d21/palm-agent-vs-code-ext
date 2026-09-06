@@ -66,6 +66,12 @@
           "type": "string",
           "default": "deepseek-v4-flash",
           "description": "Model name, sent as-is to the configured Chat Completions endpoint."
+        },
+        "palmAgent.maxOutputTokens": {
+          "type": "integer",
+          "default": 32000,
+          "minimum": 1024,
+          "description": "Output budget per completion. A reasoning model spends this on thinking before it writes any answer, so too low a value ends turns with an empty reply and finish_reason \"length\"."
         }
       }
     }

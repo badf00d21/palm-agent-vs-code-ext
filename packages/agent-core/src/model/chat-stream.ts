@@ -14,13 +14,35 @@ export interface ChatUsage {
 
 export interface AssembledCompletion {
   content: string;
+  /**
+   * Chain-of-thought, kept apart from `content`. A reasoning model spends its
+   * output budget here before writing a single character of answer, so dropping
+   * these deltas made the budget look like it vanished: an empty completion with
+   * finish_reason "length" and no way to see where it went. Never narrated and
+   * never added to the context — held only so the trace can tell the truth.
+   */
+  reasoning: string;
   finishReason: string | null;
   toolCalls: StreamToolCall[];
   usage?: ChatUsage;
 }
 
 export function emptyAssembly(): AssembledCompletion {
-  return { content: "", finishReason: null, toolCalls: [] };
+  return { content: "", reasoning: "", finishReason: null, toolCalls: [] };
+}
+
+/** DeepSeek uses reasoning_content; others send reasoning or thinking. */
+function reasoningDelta(delta: {
+  reasoning_content?: unknown;
+  reasoning?: unknown;
+  thinking?: unknown;
+}): string {
+  for (const value of [delta.reasoning_content, delta.reasoning, delta.thinking]) {
+    if (typeof value === "string" && value) {
+      return value;
+    }
+  }
+  return "";
 }
 
 function abortError(): Error {
@@ -84,15 +106,23 @@ export function applyChatChunk(
   if (!choice || typeof choice !== "object") {
     return { contentDelta: "" };
   }
+  type DeltaShape = {
+    content?: unknown;
+    tool_calls?: unknown;
+    reasoning_content?: unknown;
+    reasoning?: unknown;
+    thinking?: unknown;
+  };
   const rec = choice as {
     finish_reason?: string | null;
-    delta?: { content?: unknown; tool_calls?: unknown };
-    message?: { content?: unknown; tool_calls?: unknown };
+    delta?: DeltaShape;
+    message?: DeltaShape;
   };
   if (typeof rec.finish_reason === "string") {
     acc.finishReason = rec.finish_reason;
   }
-  const delta = rec.delta ?? rec.message ?? {};
+  const delta: DeltaShape = rec.delta ?? rec.message ?? {};
+  acc.reasoning += reasoningDelta(delta);
   let contentDelta = "";
   if (typeof delta.content === "string" && delta.content) {
     contentDelta = delta.content;
