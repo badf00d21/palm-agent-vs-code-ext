@@ -23,9 +23,10 @@ body {
 }
 
 .review-dock {
+  display: flex;
+  flex-direction: column;
   flex: 0 0 auto;
   max-height: 42%;
-  overflow: auto;
   padding: 10px 14px 12px;
   border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
 }
@@ -35,11 +36,14 @@ body {
 }
 
 .review-dock-body {
+  min-height: 0;
+  overflow: auto;
   margin-bottom: 8px;
 }
 
 .review-dock-summary {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -702,8 +706,7 @@ body {
   outline: 1px solid var(--vscode-focusBorder);
 }
 
-.suggest-empty,
-.composer-hint {
+.suggest-empty {
   color: var(--vscode-descriptionForeground);
   margin: 0 0 6px;
   font-size: 12px;
@@ -723,12 +726,18 @@ body {
   --time-animation: 2s;
   --size: 0.22;
   position: relative;
+  width: calc(100px * var(--size));
+  height: calc(100px * var(--size));
+  flex: 0 0 auto;
+}
+
+.status-orb-inner {
+  position: relative;
   width: 100px;
   height: 100px;
-  flex: 0 0 auto;
   border-radius: 50%;
   transform: scale(var(--size));
-  transform-origin: left center;
+  transform-origin: top left;
   box-shadow:
     0 0 25px 0 var(--color-three),
     0 20px 50px 0 var(--color-four);
@@ -738,7 +747,7 @@ body {
   animation: status-orb-colorize calc(var(--time-animation) * 3) ease-in-out infinite;
 }
 
-.status-orb::before {
+.status-orb-inner::before {
   content: "";
   position: absolute;
   top: 0;

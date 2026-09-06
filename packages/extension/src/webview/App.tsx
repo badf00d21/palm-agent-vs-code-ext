@@ -226,7 +226,7 @@ export function App() {
   const reviews = dockedReviews(messages);
   const pendingReviews = reviews.filter((review) => review.status === "pending");
   const hasPendingReview = pendingReviews.length > 0;
-  const dockSummary = reviewDockSummary(reviews);
+  const dockSummary = reviewDockSummary(pendingReviews);
   const transcript = transcriptLines(messages);
   const lastLine = transcript[transcript.length - 1];
   const researchInFlight = lastLine?.role === "research" && lastLine.status === "running";
@@ -255,19 +255,18 @@ export function App() {
     <div className="app">
       {hasPendingReview ? (
         <div className="review-dock" aria-label="Review">
-          {reviewExpanded ? (
-            <div className="review-dock-body">
-              {pendingReviews.map((review) => (
-                <article key={review.id} className="msg msg-review" aria-label="Review">
-                  <ReviewCard message={review} postMessage={postMessage} />
-                </article>
-              ))}
-            </div>
-          ) : null}
+          <div id="review-dock-body" className="review-dock-body" hidden={!reviewExpanded}>
+            {pendingReviews.map((review) => (
+              <article key={review.id} className="msg msg-review" aria-label="Review">
+                <ReviewCard message={review} postMessage={postMessage} />
+              </article>
+            ))}
+          </div>
           <button
             type="button"
             className="review-dock-summary"
             aria-expanded={reviewExpanded}
+            aria-controls="review-dock-body"
             onClick={() => setReviewExpanded((value) => !value)}
           >
             <span>{dockSummary.label}</span>

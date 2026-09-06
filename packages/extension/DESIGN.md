@@ -98,12 +98,12 @@ components:
 
 **Creative North Star: "The Hosted Workbench"**
 
-The chat lives inside VS Code. Paint, type, focus rings, and primary buttons are the host's. Palm Agent does not ship a brand palette; it maps roles onto `var(--vscode-*)` so Dark+, Light+, and custom themes stay coherent.
+The chat lives inside VS Code. Paint, type, focus rings, and primary buttons are the host's. Palm Agent maps interface roles onto `var(--vscode-*)` so Dark+, Light+, and custom themes stay coherent, with the StatusOrb exception documented below.
 
 The layout is a Cursor-like sidebar: streaming prose, dim tool rows, a review card with Keep / Undo / Review. Custom craft is limited to 6px message cards and density. There is no marketing chrome, neon agent skin, or private color system.
 
 **Key Characteristics:**
-- Host tokens only — no hardcoded hex
+- Host tokens for interface chrome; StatusOrb keeps its deferred source palette
 - 6px cards for messages and review; actions stay native VS Code buttons
 - Flat surfaces now; shadow only later, and only on hover or focus
 - Tool rows read as a log (editor mono, 12px); prose uses the workbench UI font
@@ -114,7 +114,7 @@ Every color is a live VS Code theme variable. Hex is not the source of truth.
 
 ### Primary
 - **Button fill** (`{colors.button-bg}`): Keep All, Undo All, Send, Stop, Review. Pair with `{colors.button-fg}`. Hover `{colors.button-hover}`.
-- **Secondary fill** (`{colors.button-secondary-bg}`): Add selection and New chat. Pair with `{colors.button-secondary-fg}`. Hover `{colors.button-secondary-hover}`.
+- **Secondary fill** (`{colors.button-secondary-bg}`): New chat. Pair with `{colors.button-secondary-fg}`. Hover `{colors.button-secondary-hover}`.
 - **Error** (`{colors.error}`): Assistant lines that start with `Error:`.
 
 ### Neutral
@@ -122,7 +122,7 @@ Every color is a live VS Code theme variable. Hex is not the source of truth.
 - **Editor ground** (`{colors.editor-bg}`): Assistant bubble so streamed text sits on the same plane as the editor.
 - **Input ground** (`{colors.input-bg}`): User bubble and composer textarea.
 - **Widget ground** (`{colors.widget-bg}`): Review card and `@` suggestion list.
-- **Foreground** (`{colors.foreground}`): Body text, role labels (at 70% opacity), waiting dots.
+- **Foreground** (`{colors.foreground}`): Body text and role labels (at 70% opacity).
 - **Input foreground** (`{colors.input-fg}`): Composer text only.
 - **Hairline** (`{colors.border}`): Bubble and suggest borders; composer top rule (fallback `{colors.panel-border}`).
 - **Link** (`{colors.link}`): Review file paths that open `vscode.diff`.
@@ -130,6 +130,8 @@ Every color is a live VS Code theme variable. Hex is not the source of truth.
 - **Focus ring** (`{colors.focus}`): 1px outline on textarea, buttons, review toggles.
 
 **The Host Paint Rule.** Do not introduce a hex, OKLCH, or brand accent. If a new surface needs color, pick an existing `--vscode-*` role.
+
+**StatusOrb exception.** StatusOrb intentionally retains the source component's hex palette, gradient, and resting glow. The review-dock specification defers remapping it to theme roles, so it is exempt from the Host Paint and Resting-Flat rules until that follow-up.
 
 ## Typography
 
@@ -163,7 +165,7 @@ Future lift is allowed only as a hover or focus response — not at rest, not on
 
 ## Shapes
 
-Message and review cards: gently curved 6px (`{rounded.sm}`), 1px `{colors.border}`. Primary actions and the composer textarea: square host chrome (no radius in CSS). Waiting dots: 5px circles (`{rounded.full}`).
+Message and review cards: gently curved 6px (`{rounded.sm}`), 1px `{colors.border}`. Primary actions and the composer textarea: square host chrome (no radius in CSS).
 
 **The One Radius Rule.** 6px is the only custom radius. Buttons and the textarea stay square like VS Code.
 
@@ -172,7 +174,7 @@ Message and review cards: gently curved 6px (`{rounded.sm}`), 1px `{colors.borde
 ### Buttons
 - **Shape:** square host button (no radius)
 - **Primary:** `{colors.button-bg}` / `{colors.button-fg}`, padding 6px 12px. Send, Stop, Keep All, Undo All, Review.
-- **Secondary:** Add selection and New chat use `{colors.button-secondary-bg}` / `{colors.button-secondary-fg}`.
+- **Secondary:** New chat uses `{colors.button-secondary-bg}` / `{colors.button-secondary-fg}`.
 - **Hover / Focus:** `{colors.button-hover}` (or `{colors.button-secondary-hover}`); focus is 1px `{colors.focus}`
 - **Disabled:** 50% opacity, default cursor
 - **Ghost:** review header and file links — no fill; file links use `{colors.link}`
@@ -187,7 +189,7 @@ Message and review cards: gently curved 6px (`{rounded.sm}`), 1px `{colors.borde
 ### Inputs / Fields
 - **Style:** composer textarea, host input colors, 1px input border, 8px padding, no resize, 3 rows
 - **Focus:** 1px `{colors.focus}`
-- **Error / Disabled:** textarea disabled while busy; hint line at 12px / 70% opacity (`No selection`); assistant `Error:` lines use `{colors.error}`
+- **Error / Disabled:** textarea is disabled while busy; assistant `Error:` lines use `{colors.error}`.
 
 ### Navigation
 None inside the webview. Activity-bar icon and view title are VS Code chrome, not this system.
