@@ -84,7 +84,6 @@ export function App() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestQuery, setSuggestQuery] = useState<string | null>(null);
   const [suggestReady, setSuggestReady] = useState(false);
-  const [hint, setHint] = useState("");
   const [highlight, setHighlight] = useState(0);
   const [context, setContext] = useState<{ used: number; max: number | null } | null>(null);
   const [reviewExpanded, setReviewExpanded] = useState(true);
@@ -115,16 +114,6 @@ export function App() {
       }
       if (msg.type === "context_usage") {
         setContext({ used: msg.used, max: msg.max });
-        return;
-      }
-      if (msg.type === "selection") {
-        if (msg.text) {
-          const selected = msg.text;
-          setInput((prev) => (prev ? `${prev}\n${selected}` : selected));
-          setHint("");
-        } else {
-          setHint("No selection");
-        }
         return;
       }
       if (shouldClearBusy(msg)) {
@@ -219,7 +208,6 @@ export function App() {
     setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
     dismissSuggest();
-    setHint("");
     setBusy(true);
     vscodeRef.current.postMessage({ type: "user_message", text });
   };
@@ -401,11 +389,6 @@ export function App() {
               )}
             </ul>
           ) : null}
-          {hint ? (
-            <p className="composer-hint" role="status">
-              {hint}
-            </p>
-          ) : null}
           <textarea
             ref={textareaRef}
             value={input}
@@ -418,7 +401,6 @@ export function App() {
             onChange={(event) => {
               const value = event.target.value;
               setInput(value);
-              setHint("");
               updateAtQuery(value, event.target.selectionStart ?? value.length);
             }}
             onSelect={(event) => {
@@ -468,14 +450,6 @@ export function App() {
               onClick={() => vscodeRef.current.postMessage({ type: "new_chat" })}
             >
               New chat
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => vscodeRef.current.postMessage({ type: "get_selection" })}
-            >
-              Add selection
             </button>
             {busy ? (
               <button

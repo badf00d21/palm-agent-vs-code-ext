@@ -168,16 +168,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
         return;
       }
-      case "get_selection": {
-        try {
-          const ctx = await this.host.port.getContext();
-          const text = ctx.selection && ctx.selection.length > 0 ? ctx.selection : null;
-          post({ type: "selection", text });
-        } catch {
-          post({ type: "selection", text: null });
-        }
-        return;
-      }
       default:
         return;
     }

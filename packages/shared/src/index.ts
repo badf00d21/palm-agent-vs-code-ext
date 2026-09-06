@@ -44,7 +44,6 @@ export type WebviewToExt =
   | { type: "open_diff"; id: string; path?: string }
   | { type: "cancel" }
   | { type: "suggest_files"; query: string }
-  | { type: "get_selection" }
   | { type: "open_url"; url: string }
   | { type: "open_location"; path: string; line: number }
   | { type: "question_answered"; id: string; answer: string }
@@ -64,7 +63,6 @@ export type ExtToWebview =
   | { type: "diff_proposed"; id: string; files: DiffFile[] }
   | { type: "diff_settled"; id: string; status: "kept" | "undone" }
   | { type: "file_suggestions"; query: string; paths: string[] }
-  | { type: "selection"; text: string | null }
   | { type: "done" }
   | { type: "error"; message: string }
   | { type: "context_usage"; used: number; max: number | null }
