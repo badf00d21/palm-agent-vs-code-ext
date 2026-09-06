@@ -1,3 +1,4 @@
+import type { FunctionCallRunner } from "./function-call-runner.js";
 import {
   FunctionCallItem,
   FunctionCallOutputItem,
@@ -107,6 +108,10 @@ export class AgenticEnvironment {
 
   getParticipants(): readonly Participant[] {
     return this.api.resolveRuntime().state.getParticipants();
+  }
+
+  getFunctionCallRunner(): FunctionCallRunner {
+    return this.api.resolveRuntime().getFunctionCallRunner();
   }
 }
 

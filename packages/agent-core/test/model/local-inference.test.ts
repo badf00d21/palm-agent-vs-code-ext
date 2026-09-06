@@ -3,10 +3,11 @@ import {
   FunctionCallOutputItem,
   ModelContext,
   ModelMessageItem,
+  OpenAIChatCompletions,
   UserMessageItem,
 } from "@mozaik-ai/core";
 import { AgenticEnvironment, BaseParticipant, type BusEvent } from "../../src/runtime/environment.js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   mapContextToChatMessages,
   parseToolCallsFromContent,
@@ -191,8 +192,92 @@ describe("runLocalChatCompletions", () => {
   const prevKey = process.env.OPENAI_API_KEY;
 
   afterEach(() => {
+    vi.restoreAllMocks();
     process.env.OPENAI_BASE_URL = prevBase;
     process.env.OPENAI_API_KEY = prevKey;
+  });
+
+  it("uses the Mozaik endpoint when no fetch implementation is provided", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const delivered: ModelMessageItem[] = [];
+    const stream = vi
+      .spyOn(OpenAIChatCompletions.prototype, "stream")
+      .mockImplementation(async function* (input) {
+        expect(input.model).toBe("deepseek-v4-pro");
+        expect(input.streaming).toBe(true);
+        yield { choices: [{ delta: { content: "Mozaik path" }, finish_reason: "stop" }] } as never;
+      });
+
+    await runLocalChatCompletions({
+      model: "deepseek-v4-pro",
+      context: ModelContext.create(),
+      tools: [],
+      environment: fakeEnv({
+        deliverModelMessage: (_caller: unknown, item: ModelMessageItem) => delivered.push(item),
+      }),
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        throw new Error(message);
+      },
+    });
+
+    expect(stream).toHaveBeenCalledOnce();
+    expect(delivered[0]?.content.text).toBe("Mozaik path");
+  });
+
+  it("sanitizes propose_edit history before the production Mozaik stream", async () => {
+    process.env.OPENAI_BASE_URL = BASE_URL;
+    const context = ModelContext.create();
+    context.addContextItem(UserMessageItem.create("create a.ts"));
+    context.addContextItem(
+      FunctionCallItem.rehydrate({
+        callId: "call_s1",
+        name: "propose_edit",
+        args: JSON.stringify({ files: [{ path: "a.ts", search: "", replace: "x" }] }),
+      }),
+    );
+    context.addContextItem(FunctionCallOutputItem.create("call_s1", "Proposed review rev_1: a.ts"));
+    const originalItems = context.getItems();
+
+    vi.spyOn(OpenAIChatCompletions.prototype, "stream").mockImplementation(async function* (input) {
+      const items = input.context.getItems();
+      expect(
+        items.some((item) => item instanceof FunctionCallItem && item.name === "propose_edit"),
+      ).toBe(false);
+      expect(
+        items.some(
+          (item) =>
+            item instanceof FunctionCallOutputItem &&
+            item.callId === "call_s1",
+        ),
+      ).toBe(false);
+      expect(
+        items.some(
+          (item) =>
+            item instanceof ModelMessageItem &&
+            item.content.text === "Proposed review rev_1: a.ts",
+        ),
+      ).toBe(true);
+      yield { choices: [{ delta: { content: "done" }, finish_reason: "stop" }] } as never;
+    });
+
+    await runLocalChatCompletions({
+      model: "gemma4:12b",
+      context,
+      tools: [],
+      environment: fakeEnv(),
+      caller: new BaseParticipant(),
+      onFailed: (message) => {
+        throw new Error(message);
+      },
+    });
+
+    expect(context.getItems()).toEqual(originalItems);
+    expect(
+      context.getItems().some(
+        (item) => item instanceof FunctionCallItem && item.name === "propose_edit",
+      ),
+    ).toBe(true);
   });
 
   it("delivers a ModelMessageItem for a local model name without Unsupported model", async () => {

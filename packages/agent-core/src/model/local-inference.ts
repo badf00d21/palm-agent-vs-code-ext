@@ -2,10 +2,10 @@ import {
   DeveloperMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
+  ModelContext,
   ModelMessageItem,
   SystemMessageItem,
   UserMessageItem,
-  type ModelContext,
   type Participant,
   type Tool,
 } from "@mozaik-ai/core";
@@ -14,6 +14,10 @@ import { looksLikeMalformedEditFence, parseSearchReplaceBlocks } from "../tools/
 import { parseToolCallsFromContent, type ChatToolCall } from "./completion-parse.js";
 import { readSseChatCompletion } from "./chat-stream.js";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "./config.js";
+import {
+  collectMozaikChatStream,
+  createMozaikChatEndpoint,
+} from "./mozaik-chat-endpoint.js";
 
 export { parseToolCallsFromContent } from "./completion-parse.js";
 
@@ -142,6 +146,23 @@ export function formatInferenceFailure(error: unknown, baseUrl = configuredBaseU
   return providerMessage(error).slice(0, 400);
 }
 
+export function sanitizeContextForInference(context: ModelContext): ModelContext {
+  const sanitized = ModelContext.create();
+  const proposeEditCallIds = new Set<string>();
+  for (const item of context.getItems()) {
+    if (item instanceof FunctionCallItem && item.name === "propose_edit") {
+      proposeEditCallIds.add(item.callId);
+      continue;
+    }
+    if (item instanceof FunctionCallOutputItem && proposeEditCallIds.has(item.callId)) {
+      sanitized.addContextItem(ModelMessageItem.rehydrate({ text: item.output.text }));
+      continue;
+    }
+    sanitized.addContextItem(item);
+  }
+  return sanitized;
+}
+
 export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
   const messages: ChatMessage[] = [];
   // propose_edit is synthetic — it is never in the Ollama tool schema. Surfacing
@@ -150,8 +171,7 @@ export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
   // code → "unexpected end of JSON input") and returns an empty completion. So we
   // fold each propose_edit call/output pair into plain assistant prose instead:
   // the model still learns it proposed edits, without a tool_call to imitate.
-  const proposeEditCallIds = new Set<string>();
-  for (const item of context.getItems()) {
+  for (const item of sanitizeContextForInference(context).getItems()) {
     if (item instanceof DeveloperMessageItem || item instanceof SystemMessageItem) {
       messages.push({ role: "system", content: item.content.text });
       continue;
@@ -165,10 +185,6 @@ export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
       continue;
     }
     if (item instanceof FunctionCallItem) {
-      if (item.name === "propose_edit") {
-        proposeEditCallIds.add(item.callId);
-        continue;
-      }
       const toolCall = {
         id: item.callId,
         type: "function" as const,
@@ -184,10 +200,6 @@ export function mapContextToChatMessages(context: ModelContext): ChatMessage[] {
       continue;
     }
     if (item instanceof FunctionCallOutputItem) {
-      if (proposeEditCallIds.has(item.callId)) {
-        messages.push({ role: "assistant", content: item.output.text });
-        continue;
-      }
       messages.push({
         role: "tool",
         tool_call_id: item.callId,
@@ -302,53 +314,70 @@ export async function runLocalChatCompletions(
   params: RunLocalChatCompletionsParams,
 ): Promise<void> {
   const baseUrl = configuredBaseUrl();
-  const fetchImpl = params.fetchImpl ?? fetch;
   const maxOutputTokens = params.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
   try {
-    const body: Record<string, unknown> = {
-      model: params.model,
-      messages: mapContextToChatMessages(params.context),
-      max_tokens: maxOutputTokens,
-    };
-    body.stream = true;
-    body.stream_options = { include_usage: true };
-    if (params.tools.length > 0) {
-      body.tools = mapTools(params.tools);
-      body.tool_choice = "auto";
-    }
-    const started = Date.now();
-    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? "not-needed"}`,
-      },
-      body: JSON.stringify(body),
-      signal: params.signal,
-    });
-    params.trace?.(`HTTP ${response.status} in ${Date.now() - started}ms`);
-    if (!isCurrentTurn(params)) {
-      params.trace?.("completion dropped: stale turn");
-      return;
-    }
-    if (!response.ok) {
-      throw await readHttpError(response);
-    }
     let emittedNarration = false;
-    const assembled = await readSseChatCompletion(
-      response,
-      (text) => {
-        if (!isCurrentTurn(params) || !text) {
-          return;
-        }
-        emittedNarration = true;
-        params.environment.deliverSemanticEvent(
-          params.caller,
-          createSemanticEvent<NarrationPayload>(NARRATION_EVENT, { text }, params.caller.getId()),
-        );
-      },
-      params.signal,
-    );
+    const onProseDelta = (text: string) => {
+      if (!isCurrentTurn(params) || !text) {
+        return;
+      }
+      emittedNarration = true;
+      params.environment.deliverSemanticEvent(
+        params.caller,
+        createSemanticEvent<NarrationPayload>(NARRATION_EVENT, { text }, params.caller.getId()),
+      );
+    };
+    let assembled;
+    if (params.fetchImpl) {
+      const body: Record<string, unknown> = {
+        model: params.model,
+        messages: mapContextToChatMessages(params.context),
+        max_tokens: maxOutputTokens,
+        stream: true,
+        stream_options: { include_usage: true },
+      };
+      if (params.tools.length > 0) {
+        body.tools = mapTools(params.tools);
+        body.tool_choice = "auto";
+      }
+      const started = Date.now();
+      const response = await params.fetchImpl(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? "not-needed"}`,
+        },
+        body: JSON.stringify(body),
+        signal: params.signal,
+      });
+      params.trace?.(`HTTP ${response.status} in ${Date.now() - started}ms`);
+      if (!isCurrentTurn(params)) {
+        params.trace?.("completion dropped: stale turn");
+        return;
+      }
+      if (!response.ok) {
+        throw await readHttpError(response);
+      }
+      assembled = await readSseChatCompletion(response, onProseDelta, params.signal);
+    } else {
+      const endpoint = createMozaikChatEndpoint({
+        baseURL: baseUrl,
+        apiKey: process.env.OPENAI_API_KEY ?? "not-needed",
+        maxOutputTokens,
+      });
+      assembled = await collectMozaikChatStream({
+        endpoint,
+        input: {
+          model: params.model,
+          maxOutputTokens,
+          streaming: true,
+          tools: params.tools,
+          context: sanitizeContextForInference(params.context),
+        },
+        onProseDelta,
+        signal: params.signal,
+      });
+    }
     if (!isCurrentTurn(params)) {
       params.trace?.("completion dropped: stale turn");
       return;

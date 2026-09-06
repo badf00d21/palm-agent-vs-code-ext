@@ -13,7 +13,10 @@ import {
   CONTEXT_TRIMMED_EVENT,
   type CompactBudget,
 } from "../context/compact.js";
-import { runLocalChatCompletions } from "../model/local-inference.js";
+import {
+  runLocalChatCompletions,
+  type ChatCompletionFetch,
+} from "../model/local-inference.js";
 import { toolsVisibleToModel } from "../tools/tools.js";
 
 function sliceError(error: unknown): string {
@@ -113,6 +116,7 @@ export class EditorAgent extends BaseParticipant {
     private readonly onTrace?: (line: string) => void,
     private readonly getBudget: () => CompactBudget = () => ({ max: null }),
     private readonly maxOutputTokens?: number,
+    private readonly fetchImpl?: ChatCompletionFetch,
   ) {
     super("Editor Agent", "agent");
   }
@@ -151,10 +155,13 @@ export class EditorAgent extends BaseParticipant {
       this.onTrace?.(`tool ${item.name} (${item.callId}) dropped: stale turn`);
       return;
     }
+    const runnableItem = item.args.trim()
+      ? item
+      : FunctionCallItem.rehydrate({ callId: item.callId, name: item.name, args: "{}" });
     this.onTrace?.(`tool ${item.name} (${item.callId}) start args=${item.args.slice(0, 100)}`);
     this.pendingCalls.add(item.callId);
-    this.context.addContextItem(item);
-    void this.invokeTool(item, generation);
+    this.context.addContextItem(runnableItem);
+    void this.invokeTool(runnableItem, generation);
   }
 
   override onFunctionCallOutput(item: FunctionCallOutputItem): void {
@@ -207,26 +214,34 @@ export class EditorAgent extends BaseParticipant {
   }
 
   /**
-   * Bypasses Mozaik's executeFunctionCall on purpose: its runner JSON.stringifies
-   * every output, so the model would read file text as one escaped line. Outputs
-   * must reach the model raw. Tool problems (unknown name, bad JSON args, a
-   * throwing invoke) go back to the model as the call's output so it can correct
-   * itself — they do not end the turn, and the call/output pairing in the context
-   * stays intact for the next request.
+   * Runs the tool via Mozaik DefaultFunctionCallRunner (raw string outputs since
+   * 4.0.6). Product guards (doom loop, wind-down, unknown name, bad JSON) short-
+   * circuit before the runner and feed Error: … back as the call output.
    */
   private async invokeTool(item: FunctionCallItem, generation: number): Promise<void> {
     const started = Date.now();
-    const output = await this.runTool(item);
+    const guarded = this.guardTool(item);
+    let outputItem: FunctionCallOutputItem;
+    if (guarded !== null) {
+      outputItem = FunctionCallOutputItem.create(item.callId, guarded);
+    } else {
+      const tool = this.tools.find((t) => t.name === item.name)!;
+      try {
+        outputItem = await this.environment.getFunctionCallRunner().run(item, tool);
+        this.lastToolWasWrite = WRITE_TOOLS.has(item.name);
+      } catch (error) {
+        // Runner normally returns Error calling tool; this is delivery/runtime failure.
+        this.lastToolWasWrite = false;
+        outputItem = FunctionCallOutputItem.create(item.callId, `Error: ${sliceError(error)}`);
+      }
+    }
     this.onTrace?.(
-      `tool ${item.name} (${item.callId}) done in ${Date.now() - started}ms, output=${output.length}ch${
-        output.startsWith("Error:") ? " (error fed back)" : ""
+      `tool ${item.name} (${item.callId}) done in ${Date.now() - started}ms, output=${outputItem.output.text.length}ch${
+        outputItem.output.text.startsWith("Error") ? " (error fed back)" : ""
       }`,
     );
     try {
-      this.environment.deliverFunctionCallOutput(
-        this,
-        FunctionCallOutputItem.create(item.callId, output),
-      );
+      this.environment.deliverFunctionCallOutput(this, outputItem);
     } catch (error) {
       this.pendingCalls.delete(item.callId);
       if (!this.isStale(generation)) {
@@ -235,7 +250,7 @@ export class EditorAgent extends BaseParticipant {
     }
   }
 
-  private async runTool(item: FunctionCallItem): Promise<string> {
+  private guardTool(item: FunctionCallItem): string | null {
     const tool = this.tools.find((t) => t.name === item.name);
     if (!tool) {
       const names = this.tools.map((t) => t.name).join(", ");
@@ -257,20 +272,14 @@ export class EditorAgent extends BaseParticipant {
         "Call write or edit with the text you already have, or answer the user."
       );
     }
-    let args: unknown;
     try {
-      args = item.args.trim() ? JSON.parse(item.args) : {};
+      if (item.args.trim()) {
+        JSON.parse(item.args);
+      }
     } catch (error) {
       return `Error: Tool arguments are not valid JSON (${sliceError(error)}). Repeat the call with arguments as one JSON object.`;
     }
-    try {
-      const result: unknown = await tool.invoke(args);
-      this.lastToolWasWrite = WRITE_TOOLS.has(item.name);
-      return typeof result === "string" ? result : (JSON.stringify(result) ?? "");
-    } catch (error) {
-      this.lastToolWasWrite = false;
-      return `Error: ${sliceError(error)}`;
-    }
+    return null;
   }
 
   private remainingSteps(): number {
@@ -328,6 +337,7 @@ export class EditorAgent extends BaseParticipant {
       generation,
       isCurrent: () => !this.isStale(generation),
       onEmptyCompletion: () => this.recoverFromEmptyCompletion(generation),
+      fetchImpl: this.fetchImpl,
       onFailed: (message) => {
         if (this.isStale(generation)) {
           return;

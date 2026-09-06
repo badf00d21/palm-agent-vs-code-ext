@@ -1,7 +1,7 @@
 # Gde odstupamo od Mozaika i zašto
 
 **Datum:** 2026-09-06
-**Verzija paketa:** `@mozaik-ai/core` 4.0.5
+**Verzija paketa:** `@mozaik-ai/core` 4.0.6
 
 Registar mesta gde smo napisali svoje iako Mozaik to već ima. Svrha je dvojaka:
 da odluka ne bude slučajna, i da se zna šta bi se vratilo na framework ako se
@@ -25,56 +25,58 @@ učesniku.
 
 ---
 
-## 1. Inference — `runLocalChatCompletions` umesto `OpenAIChatCompletions`
+## 1. Inference — endpoint direktno, ne `DefaultInferenceRunner` / `runLoop`
 
 **Mozaik ima:** `OpenAIChatCompletions implements Endpoint` (uz `OpenAIResponses`,
 `AnthropicMessages`, `GeminiGenerateContent`), `DefaultInferenceRunner`,
-`InferenceEndpointMapper`, `supportedModels`, `ModelSpecification`.
+`InferenceEndpointMapper`, `supportedModels`, `ModelSpecification`, plus
+`runLoop` / `InferenceStreamingState`.
 
-**Zapisani razlog** (`AGENTS.md`, odluka #6): jezgro ne koristi Mozaikov routing
-po imenu modela — sami gađamo `${OPENAI_BASE_URL}/chat/completions`, pa ime
-modela ide endpoint-u **kakvo jeste, bez filtera**. Istorijski: imena tipa
-`gpt-*` / `o1-*` / `text-*` su rutirana na pogrešan API.
+**Šta je zatvoreno (Slice 2):** HTTP/SSE i final assemble idu preko
+`OpenAIChatCompletions.stream` — endpoint yield-uje **sirove OpenAI chunkove**
+plus `inference.output`. Ručni `fetch` ostaje samo kao test escape hatch
+(`fetchImpl`). `max_tokens` i `stream_options.include_usage` preko `extraBody`.
+Ime modela i dalje ide u `InferenceInput.model` **kakvo jeste, bez filtera**
+(`AGENTS.md`, odluka #6).
 
-**Razlog koji se video tek kasnije, i teži je.** Potpis je:
+**Zašto i dalje imamo svoj path:** ne rutiramo kroz `DefaultInferenceRunner`
+(name lock na `supportedModels`) niti `runLoop` (mid-stream chunkovi u
+`runLoop` idu samo u cloud visitor, ne u naš UI). Turn petlju i post-parse
+i dalje vodimo sami:
 
-```ts
-stream(inferenceInput: InferenceInput): AsyncIterable<SemanticEvent>
-```
-
-To je **normalizovan** tok događaja. Sve što nam je rešilo najgore bugove traži
-**sirove delte**:
-
-| Mehanizam | Traži pristup sirovom stream-u |
+| Mehanizam | Gde ostaje naše |
 |---|---|
-| `streamMode` — prebacivanje u „tool" čim se pojavi `<<<<<<< SEARCH` | da, usred toka |
-| Narracija po delti (jedan bubble koji raste) | da, tajming delti |
-| `usage.total_tokens` za context meter | da, poslednji chunk |
-| Hvatanje `reasoning_content` odvojeno od `content` | da, po polju delte |
-| Detekcija praznog odgovora + oporavak | da, `finish_reason` |
+| Turn petlja (`EditorAgent` / `ResearchWorker`) | HITL, cancel, step budget |
+| `streamMode`, narracija, fence mute | mid-stream iz sirovih chunkova endpoint-a |
+| `usage.total_tokens`, `reasoning_content` | lokalni `applyChatChunk` |
+| Empty / length recovery | posle `inference.output` |
+| SEARCH/REPLACE → synthetic `propose_edit` | post-parse, odluka #5 |
 
-Kroz normalizovan `SemanticEvent` tok ništa od toga ne bismo videli.
-
-**Kad bi se vratilo:** ako `Endpoint` dobije pristup sirovim delta poljima
-(uključujući `reasoning_content`) ili hook pre normalizacije.
+**Kad bi se vratilo:** kad `runLoop` dobije injectable app hook za mid-stream
+UI, ili kad nam više ne treba slobodno ime modela van `supportedModels`.
 
 ---
 
-## 2. Izvršavanje alata — `invokeTool` umesto runner-ovog
+## 2. Izvršavanje alata — participant turn loop + guardovi, ne `runLoop`
 
-**Mozaik ima:** izvršavanje function call-a u `DefaultInferenceRunner`, uz
-`FunctionCallExecutionOutput`.
+**Mozaik ima:** `DefaultFunctionCallRunner` + `FunctionCallState` u `runLoop`.
 
-**Zapisani razlog** (`editor-agent.ts:209`): runner **`JSON.stringify`-uje svaki
-izlaz**, pa bi model sadržaj fajla čitao kao jedan escape-ovan red.
+**Šta je zatvoreno (Slice 1):** formatiranje uspešnog izlaza alata ide preko
+`runtime.getFunctionCallRunner().run()` — isti `DefaultFunctionCallRunner`
+(Mozaik 4.0.6: string bez `JSON.stringify`, catch vraća grešku kao
+`FunctionCallOutputItem`).
 
-**Šta smo time dobili osim sirovog izlaza:** greške alata (nepoznato ime, loš
-JSON, `invoke` koji baci) vraćaju se modelu **kao izlaz tog poziva**, pa se sam
-ispravlja umesto da turn pukne — a par poziv/izlaz u kontekstu ostaje ceo. Na
-toj šini kasnije leže `doom_loop` guard i format-guidance poruke.
+**Zašto i dalje imamo svoj path:** alatne pozive i dalje vodimo kroz
+participant (`EditorAgent.invokeTool` / `ResearchWorker.invokeTool`), ne kroz
+Mozaikov `runLoop` / `FunctionCallState`. Glavni razlog su **guardovi**
+(`doom_loop`, unknown tool, wind-down explore block, loš JSON) i **custom turn
+petlja** (HITL, cancel/generation, step budget,
+`deliverFunctionCallOutput` preko fasade) — **ne** zbog stringify ili
+dupliranog formatiranja izlaza.
 
-**Kad bi se vratilo:** ako runner prestane da stringify-uje izlaz i dozvoli da
-greška bude izlaz umesto izuzetka.
+**Kad bi se vratilo:** kad pređemo na Mozaik `runLoop` / FunctionCallState
+(ili kad runner postane injectable i uklopimo ga u našu petlju bez gubitka
+guardova i UI hook-ova).
 
 ---
 
@@ -135,8 +137,8 @@ dok jezgro ne radi. Nije odstupanje nego redosled.
 
 | # | Naše | Mozaikovo | Glavni razlog |
 |---|---|---|---|
-| 1 | `runLocalChatCompletions` | `OpenAIChatCompletions`, `DefaultInferenceRunner` | ime modela bez filtera; sirove delte za fence/narraciju/reasoning/usage |
-| 2 | `invokeTool` | runner-ovo izvršavanje | runner stringify-uje izlaz; greška kao izlaz, ne kraj turn-a |
+| 1 | `OpenAIChatCompletions.stream` + lokalni mid-stream/post-parse | `DefaultInferenceRunner`, `runLoop` | UI hook-ovi; model bez filtera; fence/recovery/edit post-parse |
+| 2 | `invokeTool` + `getFunctionCallRunner()` | `runLoop` / FunctionCallState | guardovi + custom turn petlja (formatiranje preko Mozaika) |
 | 3 | `AgenticEnvironment` / `BaseParticipant` | `SituationSpecification`, `Agent` | override ergonomija + vlasništvo po `producerId` |
 | 4 | `compactContext`, `instructions` | `Memory`, `ModelContextRepository`, `ReasoningItem` | politika trimovanja vezana za proizvod; razmišljanje van konteksta |
 
