@@ -34,6 +34,41 @@ body {
   margin-top: 10px;
 }
 
+.review-dock-body {
+  margin-bottom: 8px;
+}
+
+.review-dock-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 2px 0;
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+  background: none;
+  color: var(--vscode-descriptionForeground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.review-dock-summary:hover {
+  color: var(--vscode-foreground);
+}
+
+.review-dock-summary:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.review-dock-chevron {
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
 /* -------------------------------------------------------------------- */
 /* Transcript                                                            */
 /* -------------------------------------------------------------------- */
@@ -675,56 +710,180 @@ body {
 }
 
 /* -------------------------------------------------------------------- */
-/* Waiting indicator                                                     */
+/* Status orb — Uiverse young-walrus-64 (MIT, andrew-manzyk), scaled.     */
+/* Idle keeps lava motion; .is-busy adds hue colorize.                   */
 /* -------------------------------------------------------------------- */
 
-.is-waiting {
-  color: var(--vscode-descriptionForeground);
+.status-orb {
+  --color-one: #ffbf48;
+  --color-two: #be4a1d;
+  --color-three: #ffbf4780;
+  --color-four: #bf4a1d80;
+  --color-five: #ffbf4740;
+  --time-animation: 2s;
+  --size: 0.22;
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  transform: scale(var(--size));
+  transform-origin: left center;
+  box-shadow:
+    0 0 25px 0 var(--color-three),
+    0 20px 50px 0 var(--color-four);
+}
+
+.status-orb.is-busy {
+  animation: status-orb-colorize calc(var(--time-animation) * 3) ease-in-out infinite;
+}
+
+.status-orb::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border-top: solid 1px var(--color-one);
+  border-bottom: solid 1px var(--color-two);
+  background: linear-gradient(180deg, var(--color-five), var(--color-four));
+  box-shadow:
+    inset 0 10px 10px 0 var(--color-three),
+    inset 0 -10px 10px 0 var(--color-four);
+}
+
+.status-orb-box {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(180deg, var(--color-one) 30%, var(--color-two) 70%);
+  mask: url(#status-orb-clip);
+  -webkit-mask: url(#status-orb-clip);
+}
+
+.status-orb svg {
+  position: absolute;
+}
+
+.status-orb svg #status-orb-clip {
+  filter: contrast(15);
+  animation: status-orb-roundness calc(var(--time-animation) / 2) linear infinite;
+}
+
+.status-orb svg #status-orb-clip polygon {
+  filter: blur(7px);
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(1) {
+  transform-origin: 75% 25%;
+  transform: rotate(90deg);
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(2) {
+  transform-origin: 50% 50%;
+  animation: status-orb-rotation var(--time-animation) linear infinite reverse;
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(3) {
+  transform-origin: 50% 60%;
+  animation: status-orb-rotation var(--time-animation) linear infinite;
+  animation-delay: calc(var(--time-animation) / -3);
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(4) {
+  transform-origin: 40% 40%;
+  animation: status-orb-rotation var(--time-animation) linear infinite reverse;
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(5) {
+  transform-origin: 40% 40%;
+  animation: status-orb-rotation var(--time-animation) linear infinite reverse;
+  animation-delay: calc(var(--time-animation) / -2);
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(6) {
+  transform-origin: 60% 40%;
+  animation: status-orb-rotation var(--time-animation) linear infinite;
+}
+
+.status-orb svg #status-orb-clip polygon:nth-child(7) {
+  transform-origin: 60% 40%;
+  animation: status-orb-rotation var(--time-animation) linear infinite;
+  animation-delay: calc(var(--time-animation) / -1.5);
+}
+
+@keyframes status-orb-rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes status-orb-roundness {
+  0% {
+    filter: contrast(15);
+  }
+  20%,
+  40% {
+    filter: contrast(3);
+  }
+  60%,
+  100% {
+    filter: contrast(15);
+  }
+}
+
+@keyframes status-orb-colorize {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  20% {
+    filter: hue-rotate(-30deg);
+  }
+  40% {
+    filter: hue-rotate(-60deg);
+  }
+  60% {
+    filter: hue-rotate(-90deg);
+  }
+  80% {
+    filter: hue-rotate(-45deg);
+  }
+  100% {
+    filter: hue-rotate(0deg);
+  }
 }
 
 .waiting-line {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 28px;
 }
 
-.waiting-dots {
-  display: inline-flex;
-  gap: 3px;
+.is-waiting {
+  color: var(--vscode-descriptionForeground);
 }
 
-.waiting-dots span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--vscode-foreground);
-  opacity: 0.35;
-  animation: waiting-pulse 1s ease-in-out infinite;
-}
-
-.waiting-dots span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.waiting-dots span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes waiting-pulse {
-  0%,
-  80%,
-  100% {
-    opacity: 0.25;
-  }
-  40% {
-    opacity: 0.9;
-  }
+.messages-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-top: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .waiting-dots span {
+  .status-orb.is-busy {
     animation: none;
-    opacity: 0.5;
+  }
+
+  .status-orb svg #status-orb-clip,
+  .status-orb svg #status-orb-clip polygon {
+    animation: none !important;
   }
 }
 
