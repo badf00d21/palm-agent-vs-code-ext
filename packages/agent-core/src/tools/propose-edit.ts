@@ -1,4 +1,5 @@
-import { locateWorkspaceFile } from "../workspace/locate.js";
+import { locateWorkspaceFile, resolveWorkspaceFilePath } from "../workspace/locate.js";
+import { toPosix } from "../workspace/paths.js";
 import type { WorkspacePort } from "../workspace/port.js";
 import { classifyEditBlock, type EditKind } from "./edit-blocks.js";
 import { exactFunctionInFile, functionNameFromSearch } from "./named-function.js";
@@ -133,6 +134,64 @@ export async function invokeEdit(
     port,
     reviewHost,
     EDIT_TOOL_LABELS,
+  );
+}
+
+/**
+ * Propose deleting one existing file. Never touches disk — like write and
+ * edit, this only reaches ReviewHost so the human sees it in the same Keep
+ * All / Undo All card. The file must exist and must be a single file: v1
+ * refuses directories rather than guessing what "delete a directory" should
+ * mean, and refuses a missing path so the model corrects itself instead of
+ * proposing a no-op.
+ */
+export async function invokeDeleteFile(
+  args: Record<string, unknown>,
+  port: WorkspacePort,
+  reviewHost: ReviewHost,
+): Promise<string> {
+  const rawPath = String(args.path ?? "").trim();
+  if (!rawPath) {
+    return "Error: delete_file requires path";
+  }
+  const normalized = toPosix(rawPath).replace(/^\.\//, "");
+  if (normalized.endsWith("/")) {
+    return "Error: delete_file only deletes a single file, not a directory";
+  }
+
+  let resolved: { path: string } | { error: string };
+  try {
+    resolved = await resolveWorkspaceFilePath(port, normalized);
+  } catch (error) {
+    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  if ("error" in resolved) {
+    // resolveWorkspaceFilePath reports "No file named X" for a directory too
+    // (it only resolves bare names against files), so check the exact path
+    // directly and give a directory its own, clearer error.
+    let presence: "file" | "dir" | "absent";
+    try {
+      presence = await port.exists(normalized);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (presence === "dir") {
+      return `Error: ${normalized} is a directory. delete_file only deletes a single file.`;
+    }
+    return `Error: ${resolved.error}`;
+  }
+
+  const filePath = resolved.path;
+  let original: string;
+  try {
+    original = await port.readFile(filePath);
+  } catch (error) {
+    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  return proposedMessage(
+    reviewHost.merge([{ path: filePath, original, proposed: "", kind: "delete" }]),
   );
 }
 

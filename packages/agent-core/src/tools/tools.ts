@@ -10,7 +10,7 @@ import type {
 import { invokeDiagnostics } from "./diagnostics.js";
 import { formatSymbols, outlineByIndent } from "./outline.js";
 import { findSymbolPosition } from "./symbol-position.js";
-import { invokeEdit, invokeProposeEdit, invokeWrite } from "./propose-edit.js";
+import { invokeDeleteFile, invokeEdit, invokeProposeEdit, invokeWrite } from "./propose-edit.js";
 import { invokeQuestion, type QuestionHost } from "./question.js";
 import { lineCount, sliceByLines } from "./read-range.js";
 import type { ReviewHost } from "./review.js";
@@ -70,6 +70,7 @@ export const SYSTEM_PROMPT =
   "Before you change a function, type or field that other code may use, call references on it so the change does not break callers you never looked at. To create or change a file you MUST call the write or edit tool. That is the only way a change reaches the human. Pasting code in a ``` fence writes nothing. Never claim a file was created unless a tool result confirmed it, and never say you cannot create or edit files. " +
   "write takes path and content, and creates the file or replaces it whole. Use it for new files. " +
   "edit takes path, old_string, and new_string, and replaces one literal piece of an existing file. Prefer edit for a file that already exists. old_string must be text copied exactly from read_file, long enough to appear only once (one function, or about 20-40 lines). It is literal text, never a wildcard like {[^}]*}. " +
+  "To delete an existing file, call delete_file with its path. It does not delete anything itself; the human reviews it with Keep All / Undo All exactly like write and edit. " +
   "One call changes one file. To create or change several files, call the tool once per file; the changes collect into a single review. " +
   "If a tool result starts with Error:, fix the arguments and call again instead of apologizing or giving up. If the result gives exact text after old_string not found, call edit again using that text verbatim. " +
   "When the user confirms (for example: ok, do it, yes, uradi, hajde), immediately call the tools — do not restate the plan and do not paste the code as your answer. " +
@@ -417,6 +418,21 @@ export function createWorkspaceTools(
         required: ["path", "old_string", "new_string"],
       },
       invoke: async (args) => invokeEdit(args, port, reviewHost),
+    },
+    {
+      name: "delete_file",
+      description:
+        "Propose deleting one existing file. path must already exist and must be a single file, not a directory. Does not delete anything itself: this only proposes the deletion, and the human reviews it with Keep All / Undo All exactly like write and edit. One call deletes one file; call again for another file.",
+      strict: true,
+      type: "function",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Workspace-relative path or unique filename of the file to delete" },
+        },
+        required: ["path"],
+      },
+      invoke: async (args) => invokeDeleteFile(args, port, reviewHost),
     },
     {
       name: "propose_edit",

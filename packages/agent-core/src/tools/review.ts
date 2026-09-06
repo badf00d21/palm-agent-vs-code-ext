@@ -1,10 +1,18 @@
 import type { EditKind } from "./edit-blocks.js";
 
+/**
+ * `EditKind` is what `classifyEditBlock` can parse out of a SEARCH/REPLACE
+ * fence or `write`'s args — it has no notion of deletion. `delete_file` is a
+ * distinct tool with its own proposal shape, so the kind a review card can
+ * carry is wider than what fence-parsing produces.
+ */
+export type ProposedKind = EditKind | "delete";
+
 export interface ProposedFile {
   path: string;
   original: string;
   proposed: string;
-  kind: EditKind;
+  kind: ProposedKind;
 }
 
 export interface PendingReview {

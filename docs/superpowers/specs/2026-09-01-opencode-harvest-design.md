@@ -1,9 +1,40 @@
 # opencode harvest — design spec
 
 **Datum:** 2026-09-01
-**Status:** predlog (istraživanje gotovo, prioriteti za odluku)
+**Status:** predlog — delimično isporučeno, vidi status tabelu ispod
 **Nastavlja:** v3 streaming/context UX, hygiene split
 **Ne pokriva:** fork opencode-a, zamenu Mozaik runtime-a, multi-provider sloj
+
+---
+
+## Status isporuke (dopunjeno 2026-09-06)
+
+Telo ispod je original od 2026-09-01 i **ne dira se** — to je zapis odluke u
+trenutku kad je doneta. Ova tabela kaže šta je od toga stvarno isporučeno.
+
+| Stavka | Status | Gde |
+|---|---|---|
+| P0 `write` + `edit` ravni argumenti | **isporučeno** | `tools/propose-edit.ts` |
+| P1 permission sistem | **nije** | v4, uz terminal tool |
+| P1 `doom_loop` detekcija | **isporučeno** | `MAX_IDENTICAL_CALLS` u `participants/editor-agent.ts` |
+| P2 compaction | **isporučeno** (naša skala) | `context/compact.ts`, spec `2026-09-01-context-compact-new-chat-design.md` |
+| P3 agent definicije (format) | **nije** | — |
+| P4 Zod tool schemas | **nije** | šeme su i dalje ručni JSON Schema |
+| P5 `AGENTS.md` discovery | **isporučeno** | `context/instructions.ts` |
+| P6 `glob` | **isporučeno** | `tools/tools.ts` |
+| P6 `question` | **isporučeno** | `tools/question.ts` |
+| P6 diagnostics / typecheck | **isporučeno** | `tools/diagnostics.ts`, spec `2026-09-06-diagnostics-web-docs-tools-design.md` |
+| P6 `webfetch` | **isporučeno** | `tools/web.ts` |
+| P6 `websearch` | **odbijeno, zamenjeno** | umesto SERP-a → `docs_search` (Context7, bez ključa); obrazloženje u `2026-09-06-diagnostics-web-docs-tools-design.md` |
+| P6 `apply_patch` | **nije** (i dalje odloženo) | P0 je rešio bol |
+| P6 `todowrite` | **preskočeno** | kako je i predloženo — 16k ga ne trpi |
+
+Isporučeno **van** ovog spec-a (nije bilo u harvest listi):
+
+- `delete_file` — `2026-09-06-delete-file-tool-design.md`
+- `research` (multi-agent fan-out) — `2026-09-06-research-mode-design.md`; opencode ima
+  `task`, ali naša verzija je opravdana kontekst-budžetom, ne brzinom
+- flat transcript redesign — `2026-09-06-flat-transcript-redesign-design.md`
 
 ---
 

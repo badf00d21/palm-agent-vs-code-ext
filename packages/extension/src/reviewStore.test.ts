@@ -292,6 +292,63 @@ describe("createReviewStore", () => {
     expect(await store.apply("rev_1")).toEqual({ type: "error", message: "No pending review" });
   });
 
+  it("proposes a delete and passes it to applyFiles like any other kind", async () => {
+    const applied: unknown[] = [];
+    const events: unknown[] = [];
+    const store = createReviewStore({
+      emit: (e) => events.push(e),
+      readFile: async () => "old body\n",
+      exists: async () => "file",
+      applyFiles: async (files) => {
+        applied.push(...files);
+      },
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "old.ts", original: "old body\n", proposed: "", kind: "delete" }]);
+    expect(events).toEqual([
+      { type: "diff_proposed", id: "rev_1", files: [{ path: "old.ts", kind: "delete" }] },
+    ]);
+    expect(await store.apply("rev_1")).toEqual({ type: "diff_settled", id: "rev_1", status: "kept" });
+    expect(applied).toEqual([{ path: "old.ts", proposed: "", kind: "delete" }]);
+  });
+
+  it("refuses a delete when the file changed since the proposal", async () => {
+    let wrote = false;
+    const store = createReviewStore({
+      emit: () => undefined,
+      readFile: async () => "changed underneath",
+      exists: async () => "file",
+      applyFiles: async () => {
+        wrote = true;
+      },
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "old.ts", original: "old body\n", proposed: "", kind: "delete" }]);
+    const result = await store.apply("rev_1");
+    expect((result as { message: string }).message).toContain("File changed since proposal: old.ts");
+    expect(wrote).toBe(false);
+  });
+
+  it("merges a delete alongside a create and an edit into one pending review", () => {
+    const events: unknown[] = [];
+    const store = createReviewStore({
+      emit: (e) => events.push(e),
+      readFile: async () => "a",
+      exists: async () => "file",
+      applyFiles: async () => undefined,
+      createId: () => "rev_1",
+    });
+    store.merge([{ path: "a.ts", original: "a", proposed: "b", kind: "edit" }]);
+    store.merge([{ path: "n.ts", original: "", proposed: "hi\n", kind: "create" }]);
+    store.merge([{ path: "old.ts", original: "old body\n", proposed: "", kind: "delete" }]);
+    const last = events[events.length - 1] as { files: unknown[] };
+    expect(last.files).toEqual([
+      { path: "a.ts", kind: "edit" },
+      { path: "n.ts", kind: "create" },
+      { path: "old.ts", kind: "delete" },
+    ]);
+  });
+
   it("returns No pending review when clear runs while applyFiles is pending", async () => {
     let releaseApply!: () => void;
     let applyStarted = false;

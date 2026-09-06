@@ -18,6 +18,14 @@ export async function applyFiles(
       continue;
     }
     const uri = vscode.Uri.joinPath(root, file.path);
+    if (file.kind === "delete") {
+      // deleteFile on the same WorkspaceEdit as every other change, not
+      // vscode.workspace.fs.delete: that call is not part of the undo stack,
+      // so a deletion outside this edit would survive Undo All.
+      edit.deleteFile(uri, { ignoreIfNotExists: false });
+      hasEdit = true;
+      continue;
+    }
     toSave.push({ uri, path: file.path });
     if (file.kind === "create") {
       edit.createFile(uri, { ignoreIfExists: false });

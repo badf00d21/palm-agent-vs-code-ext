@@ -117,6 +117,23 @@ export function isReviewStoreError(message: string): boolean {
   );
 }
 
+/**
+ * The Mozaik Cloud session affordance lives outside the transcript (it must
+ * survive scrolling), so it is tracked as its own bit of state rather than a
+ * ChatLine. `session_cleared` fires synchronously on New Chat, ahead of the
+ * new session's `cloud_session` event, so clearing on it first keeps a stale
+ * link from lingering even if the new URL is slow to arrive.
+ */
+export function applyCloudSession(current: string | null, msg: ExtToWebview): string | null {
+  if (msg.type === "cloud_session") {
+    return msg.url;
+  }
+  if (msg.type === "session_cleared") {
+    return null;
+  }
+  return current;
+}
+
 export function shouldClearBusy(msg: ExtToWebview): boolean {
   if (msg.type === "done") {
     return true;

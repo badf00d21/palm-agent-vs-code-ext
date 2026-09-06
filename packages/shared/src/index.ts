@@ -1,6 +1,6 @@
 export interface DiffFile {
   path: string;
-  kind: "edit" | "create" | "mkdir";
+  kind: "edit" | "create" | "mkdir" | "delete";
 }
 
 export type ToolCallStatus = "running" | "done";
@@ -71,6 +71,8 @@ export type ExtToWebview =
   | { type: "question_asked"; id: string; question: string; options: string[] }
   | { type: "question_settled"; id: string; answer: string | null }
   | { type: "context_trimmed" }
+  /** The Mozaik Cloud session URL for this run, once the exporter connects. */
+  | { type: "cloud_session"; url: string }
   /** A research run began; `workers` is the full fan-out, all "pending". */
   | { type: "research_started"; id: string; question: string; workers: ResearchWorker[] }
   /** One worker changed. The panel replaces that worker by id. */

@@ -36,6 +36,7 @@ vi.mock("vscode", () => ({
     createFile = vi.fn();
     insert = vi.fn();
     replace = vi.fn();
+    deleteFile = vi.fn();
   },
   workspace: {
     get workspaceFolders() {
@@ -88,5 +89,33 @@ describe("applyFiles", () => {
     await expect(applyFiles([{ path: "a.ts", proposed: "b", kind: "edit" }])).rejects.toThrow(
       "Failed to save a.ts",
     );
+  });
+
+  it("deletes through the same WorkspaceEdit as other changes, not workspace.fs.delete", async () => {
+    // deleteFile on the shared edit lands in the same undo transaction as any
+    // other proposed change, so Undo All can bring the file back.
+    // vscode.workspace.fs.delete is not undoable and must never be used here.
+    await applyFiles([
+      { path: "old.ts", proposed: "", kind: "delete" },
+      { path: "new.ts", proposed: "hi\n", kind: "create" },
+    ]);
+    expect(applyEdit).toHaveBeenCalledOnce();
+    const edit = applyEdit.mock.calls[0]![0] as { deleteFile: ReturnType<typeof vi.fn> };
+    expect(edit.deleteFile).toHaveBeenCalledOnce();
+    expect(edit.deleteFile).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "old.ts" }),
+      { ignoreIfNotExists: false },
+    );
+  });
+
+  it("does not open or save a deleted file", async () => {
+    await applyFiles([{ path: "old.ts", proposed: "", kind: "delete" }]);
+    expect(openTextDocument).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("deletes without other edits still going through applyEdit", async () => {
+    await applyFiles([{ path: "old.ts", proposed: "", kind: "delete" }]);
+    expect(applyEdit).toHaveBeenCalledOnce();
   });
 });

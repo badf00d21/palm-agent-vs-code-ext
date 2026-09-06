@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ExtToWebview, WebviewToExt } from "@palm-agent/shared";
 import {
+  applyCloudSession,
   applyExtMessage,
   dockedReviews,
   reviewDockSummary,
@@ -86,6 +87,7 @@ export function App() {
   const [suggestReady, setSuggestReady] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [context, setContext] = useState<{ used: number; max: number | null } | null>(null);
+  const [cloudUrl, setCloudUrl] = useState<string | null>(null);
   const [reviewExpanded, setReviewExpanded] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -109,11 +111,16 @@ export function App() {
       if (msg.type === "session_cleared") {
         setMessages([]);
         setContext(null);
+        setCloudUrl((current) => applyCloudSession(current, msg));
         setBusy(false);
         return;
       }
       if (msg.type === "context_usage") {
         setContext({ used: msg.used, max: msg.max });
+        return;
+      }
+      if (msg.type === "cloud_session") {
+        setCloudUrl((current) => applyCloudSession(current, msg));
         return;
       }
       if (shouldClearBusy(msg)) {
@@ -440,6 +447,16 @@ export function App() {
           />
         </div>
         <div className="composer-actions">
+          {cloudUrl ? (
+            <button
+              type="button"
+              className="btn btn-ghost cloud-session-link"
+              onClick={() => postMessage({ type: "open_url", url: cloudUrl })}
+              title={cloudUrl}
+            >
+              Cloud session ↗
+            </button>
+          ) : null}
           {context ? <ContextRing used={context.used} max={context.max} /> : null}
           <div className="composer-buttons">
             <button

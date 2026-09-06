@@ -34,25 +34,40 @@ export function ReviewCard({ message, postMessage }: ReviewCardProps) {
       {open ? (
         <div id={filesId}>
           <ul className="review-list">
-            {message.files.map((file) => (
-              <li key={file.path}>
-                {pending && file.kind !== "mkdir" ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost review-file"
-                    onClick={() => postMessage({ type: "open_diff", id: message.id, path: file.path })}
-                  >
-                    {file.path}
-                    {file.kind === "create" ? <span className="review-kind"> new</span> : null}
-                  </button>
-                ) : (
-                  <span className={pending ? undefined : "review-file-static"}>
-                    {file.path}
-                    {file.kind === "create" ? <span className="review-kind"> new</span> : null}
-                  </span>
-                )}
-              </li>
-            ))}
+            {message.files.map((file) => {
+              const isDelete = file.kind === "delete";
+              const fileClassName = isDelete ? "review-file review-file-delete" : "review-file";
+              const kindLabel =
+                file.kind === "create" ? "new" : isDelete ? "delete" : null;
+              const kindClassName = isDelete ? "review-kind review-kind-delete" : "review-kind";
+              return (
+                <li key={file.path}>
+                  {pending && file.kind !== "mkdir" ? (
+                    <button
+                      type="button"
+                      className={`btn btn-ghost ${fileClassName}`}
+                      onClick={() => postMessage({ type: "open_diff", id: message.id, path: file.path })}
+                    >
+                      {file.path}
+                      {kindLabel ? <span className={kindClassName}> {kindLabel}</span> : null}
+                    </button>
+                  ) : (
+                    <span
+                      className={
+                        pending
+                          ? isDelete
+                            ? "review-file-delete"
+                            : undefined
+                          : `review-file-static${isDelete ? " review-file-delete" : ""}`
+                      }
+                    >
+                      {file.path}
+                      {kindLabel ? <span className={kindClassName}> {kindLabel}</span> : null}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           {pending ? (
             <div className="review-actions">
