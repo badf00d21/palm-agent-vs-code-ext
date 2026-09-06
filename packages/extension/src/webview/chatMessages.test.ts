@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCloudSession,
   applyExtMessage,
   dockedReviews,
   reviewDockSummary,
@@ -386,6 +387,51 @@ describe("applyExtMessage", () => {
   it("does not clear busy on context_trimmed or session_cleared", () => {
     expect(shouldClearBusy({ type: "context_trimmed" })).toBe(false);
     expect(shouldClearBusy({ type: "session_cleared" })).toBe(false);
+  });
+
+  it("ignores cloud_session in the transcript reducer", () => {
+    const prev: ChatLine[] = [{ role: "user", text: "x" }];
+    expect(applyExtMessage(prev, { type: "cloud_session", url: "https://cloud.example/s/1" })).toBe(
+      prev,
+    );
+  });
+
+  describe("applyCloudSession", () => {
+    it("stays null with no cloud session configured", () => {
+      expect(applyCloudSession(null, { type: "context_trimmed" })).toBeNull();
+    });
+
+    it("adopts the url from a cloud_session event", () => {
+      expect(applyCloudSession(null, { type: "cloud_session", url: "https://cloud.example/s/1" })).toBe(
+        "https://cloud.example/s/1",
+      );
+    });
+
+    it("replaces a previous url with a new one", () => {
+      const withFirst = applyCloudSession(null, {
+        type: "cloud_session",
+        url: "https://cloud.example/s/1",
+      });
+      expect(applyCloudSession(withFirst, { type: "cloud_session", url: "https://cloud.example/s/2" })).toBe(
+        "https://cloud.example/s/2",
+      );
+    });
+
+    it("clears a stale url on session_cleared so New Chat never shows the old session", () => {
+      const withUrl = applyCloudSession(null, {
+        type: "cloud_session",
+        url: "https://cloud.example/s/1",
+      });
+      expect(applyCloudSession(withUrl, { type: "session_cleared" })).toBeNull();
+    });
+
+    it("leaves the url untouched for unrelated events", () => {
+      const withUrl = applyCloudSession(null, {
+        type: "cloud_session",
+        url: "https://cloud.example/s/1",
+      });
+      expect(applyCloudSession(withUrl, { type: "done" })).toBe("https://cloud.example/s/1");
+    });
   });
 
   describe("research", () => {

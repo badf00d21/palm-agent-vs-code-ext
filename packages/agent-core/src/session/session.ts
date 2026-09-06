@@ -233,7 +233,9 @@ export function createAgentSession(
     user.join(environment);
     const apiKey = options.mozaikApiKey?.trim();
     cloud = apiKey
-      ? attachCloud(environment, { apiKey, endpoint: options.mozaikCloudEndpoint }, trace)
+      ? attachCloud(environment, { apiKey, endpoint: options.mozaikCloudEndpoint }, trace, (url) =>
+          sink({ type: "cloud_session", url }),
+        )
       : undefined;
   };
 

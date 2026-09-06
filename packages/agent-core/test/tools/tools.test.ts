@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspacePort } from "../../src/workspace/port.js";
-import type { ReviewHost } from "../../src/tools/review.js";
+import { mergePending, type PendingReview, type ReviewHost } from "../../src/tools/review.js";
 import { invokeProposeEdit } from "../../src/tools/propose-edit.js";
 import { SYSTEM_PROMPT, createWorkspaceTools, toolsVisibleToModel } from "../../src/tools/tools.js";
 
@@ -313,6 +313,124 @@ describe("edit", () => {
   it("requires path", async () => {
     const invoke = getInvoke("edit", fakePort());
     expect(await invoke({ old_string: "a", new_string: "b" })).toBe("Error: edit requires path");
+  });
+});
+
+describe("delete_file", () => {
+  it("proposes a deletion for an existing file", async () => {
+    const merged: unknown[] = [];
+    const invoke = getInvoke(
+      "delete_file",
+      fakePort({ exists: async () => "file", readFile: async () => "old body\n" }),
+      fakeHost({
+        merge: (files) => {
+          merged.push(...files);
+          return { id: "rev_1", paths: files.map((f) => f.path) };
+        },
+      }),
+    );
+    expect(await invoke({ path: "src/old.ts" })).toBe("Proposed review rev_1: src/old.ts");
+    expect(merged).toEqual([
+      { path: "src/old.ts", original: "old body\n", proposed: "", kind: "delete" },
+    ]);
+  });
+
+  it("errors on a missing file so the model self-corrects instead of proposing a no-op", async () => {
+    const invoke = getInvoke("delete_file", fakePort({ exists: async () => "absent" }));
+    const out = await invoke({ path: "src/gone.ts" });
+    expect(out).toMatch(/^Error: /);
+    expect(out).toMatch(/gone\.ts/);
+  });
+
+  it("errors on a directory instead of the file", async () => {
+    const invoke = getInvoke("delete_file", fakePort({ exists: async () => "dir" }));
+    expect(await invoke({ path: "src" })).toBe(
+      "Error: src is a directory. delete_file only deletes a single file.",
+    );
+  });
+
+  it("rejects a trailing-slash path as a directory without needing to check existence", async () => {
+    const invoke = getInvoke("delete_file", fakePort());
+    expect(await invoke({ path: "src/" })).toBe(
+      "Error: delete_file only deletes a single file, not a directory",
+    );
+  });
+
+  it("errors on a path outside the workspace instead of throwing", async () => {
+    const invoke = getInvoke(
+      "delete_file",
+      fakePort({
+        exists: async () => {
+          throw new Error("Path is outside the workspace");
+        },
+      }),
+    );
+    await expect(invoke({ path: "../secret.txt" })).resolves.toBe(
+      "Error: Path is outside the workspace",
+    );
+  });
+
+  it("requires path", async () => {
+    const invoke = getInvoke("delete_file", fakePort());
+    expect(await invoke({})).toBe("Error: delete_file requires path");
+  });
+
+  it("resolves a unique bare filename the same way read_file does", async () => {
+    const merged: unknown[] = [];
+    const invoke = getInvoke(
+      "delete_file",
+      fakePort({
+        exists: async (path) => (path === "src/old.ts" ? "file" : "absent"),
+        findFiles: async (name) => (name === "old.ts" ? ["src/old.ts"] : []),
+        readFile: async () => "old body\n",
+      }),
+      fakeHost({
+        merge: (files) => {
+          merged.push(...files);
+          return { id: "rev_1", paths: files.map((f) => f.path) };
+        },
+      }),
+    );
+    expect(await invoke({ path: "old.ts" })).toBe("Proposed review rev_1: src/old.ts");
+    expect(merged).toEqual([
+      { path: "src/old.ts", original: "old body\n", proposed: "", kind: "delete" },
+    ]);
+  });
+
+  it("merges into a pending review alongside other proposed changes", async () => {
+    let pending: PendingReview | undefined;
+    const host: ReviewHost = {
+      merge: (files) => {
+        pending = mergePending(pending, files, () => "rev_1");
+        return { id: pending.id, paths: pending.files.map((f) => f.path) };
+      },
+    };
+    const port = fakePort({
+      exists: async (path) => (path === "old.ts" ? "file" : "absent"),
+      readFile: async () => "old body\n",
+    });
+    const tools = createWorkspaceTools(port, host);
+    const write = tools.find((t) => t.name === "write")?.invoke;
+    const del = tools.find((t) => t.name === "delete_file")?.invoke;
+    if (!write || !del) {
+      throw new Error("missing tools");
+    }
+    await write({ path: "new.ts", content: "hello" });
+    await del({ path: "old.ts" });
+    expect(pending?.files).toEqual([
+      { path: "new.ts", original: "", proposed: "hello", kind: "create" },
+      { path: "old.ts", original: "old body\n", proposed: "", kind: "delete" },
+    ]);
+  });
+
+  it("is visible to the model", () => {
+    const names = toolsVisibleToModel(createWorkspaceTools(fakePort(), fakeHost())).map((t) => t.name);
+    expect(names).toContain("delete_file");
+  });
+
+  it("declares delete_file with a flat path argument", () => {
+    const tool = createWorkspaceTools(fakePort(), fakeHost()).find((t) => t.name === "delete_file");
+    expect(Object.keys(tool?.parameters.properties ?? {})).toEqual(["path"]);
   });
 });
 

@@ -25,7 +25,8 @@ Ovo su odluke donete namerno — ne preispituj ih bez razloga, gradi na njima.
 4. **Agent u ext host-u za v0–v4**, pa ekstrakcija u zaseban Node proces (JSON-RPC preko stdio) u v5. Ne komplikuj sa IPC-om dok loop ne radi.
 5. **Edit format: SEARCH/REPLACE blokovi.** Applier → `vscode.WorkspaceEdit` (undo-friendly) → `TextDocument.save()` na Keep All → preview kroz native `vscode.diff` → accept/reject. **Ne** unified diff (LLM-ovi ga lošije proizvode).
 6. **Modeli preko OpenAI-kompatibilnog sloja.** Jezgro ne koristi Mozaikov routing po imenu modela — `runLocalChatCompletions` sam gađa `${OPENAI_BASE_URL}/chat/completions`, pa ime modela ide endpoint-u kakvo jeste (bez filtera). Brz lokalni model u VRAM-u za interaktivnu petlju; jak (RAM MoE ili cloud) za teško planiranje.
-7. **Van opsega dok jezgro ne radi:** codebase indexing/embeddings, multi-agent, autocomplete/Tab, MCP, git checkpoints.
+7. **Van opsega dok jezgro ne radi:** codebase indexing/embeddings, autocomplete/Tab, MCP, git checkpoints.
+   **Izuzetak (2026-09-06): multi-agent je delimično ušao** — `research` tool diže read-only radnike na istom Mozaik bus-u (`docs/superpowers/specs/2026-09-06-research-mode-design.md`). Prošao je jer je *read-only*: bez pisanja nema file lease-ova ni `human_build` gate-a iz orchestration spec-a, pa nije trebalo dizati Board/Broker runtime. Multi-agent koji **piše** ostaje van opsega.
 
 ---
 
@@ -98,6 +99,25 @@ Drži u `shared/`. Isti oblik kasnije ide preko JSON-RPC-a kad se agent izdvoji 
 | v5 | Izdvoji agenta u zaseban proces (JSON-RPC/stdio) | priprema za fork |
 
 Detaljan plan po fazama: vidi `plan-implementacije-vscode-agent.md`.
+
+### Gde smo (2026-09-06)
+
+v0–v3 rade. v4 (terminal iza approval gate-a) i v5 (izdvajanje procesa) još nisu počeli.
+
+Trenutni tool surface koji model vidi:
+
+| Grupa | Tools |
+|---|---|
+| Čitanje | `read_file`, `list_dir`, `search`, `glob`, `outline`, `get_context` |
+| Language server | `references`, `hover`, `diagnostics` |
+| Izmene (predlog → review) | `write`, `edit`, `delete_file` (+ interni `propose_edit` kao fence fallback) |
+| Mreža | `web_fetch`, `docs_search` (Context7, bez ključa) |
+| Ljudski input | `question` |
+| Fan-out | `research` |
+
+Napomena o budžetu: svaka tool šema se šalje uz **svaki** inference poziv. Sa
+ovoliko alata to je nezanemarljiv deo 16k prozora — pre dodavanja novog alata
+proveri context ring, ne samo da li alat radi.
 
 ---
 

@@ -32,4 +32,17 @@ describe("attachCloud", () => {
     expect(config.endpoint).toBe("https://api.app.jigjoy.ai");
     expect(environment.getParticipants().some((p) => p.getManifest().name === "cloud")).toBe(true);
   });
+
+  it("forwards the session url to onSessionUrl in addition to trace", () => {
+    const environment = new AgenticEnvironment();
+    const traced: string[] = [];
+    const urls: string[] = [];
+    attachCloud(environment, { apiKey: "pk_test" }, (line) => traced.push(line), (url) =>
+      urls.push(url),
+    );
+    const config = createCloudExporter.mock.calls[0]![0] as { onSessionUrl: (url: string) => void };
+    config.onSessionUrl("https://cloud.example/s/1");
+    expect(urls).toEqual(["https://cloud.example/s/1"]);
+    expect(traced).toEqual(["cloud session https://cloud.example/s/1"]);
+  });
 });

@@ -14,6 +14,7 @@ export function attachCloud(
   environment: AgenticEnvironment,
   attach: CloudAttach,
   trace: CloudTrace,
+  onSessionUrl?: (url: string) => void,
 ): CloudExporter {
   const cloud = createCloudExporter({
     endpoint: attach.endpoint?.trim() || DEFAULT_CLOUD_ENDPOINT,
@@ -21,6 +22,7 @@ export function attachCloud(
     participants: () => environment.getParticipants(),
     onSessionUrl: (url) => {
       trace(`cloud session ${url}`);
+      onSessionUrl?.(url);
     },
     onError: (error) => {
       trace(`cloud error: ${error.message}`);

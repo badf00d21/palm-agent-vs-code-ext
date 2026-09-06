@@ -51,7 +51,8 @@ body {
   margin: 0;
   padding: 6px 2px 0;
   border: none;
-  border-top: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+  border-top: 1px solid
+    var(--vscode-contrastBorder, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
   background: none;
   color: var(--vscode-descriptionForeground);
   font: inherit;
@@ -446,6 +447,22 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
+/* Deletion is the one action Undo All aside, a human cannot casually reverse
+   after the fact -- give it its own color so it cannot be skimmed as an
+   ordinary edit or create. */
+.review-file-delete,
+.review-file.review-file-delete,
+.review-file-static.review-file-delete {
+  color: var(--vscode-errorForeground);
+  text-decoration: line-through;
+}
+
+.review-kind-delete {
+  color: var(--vscode-errorForeground);
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .msg-question {
   border-left: 2px solid var(--vscode-contrastBorder, var(--vscode-focusBorder));
   padding-left: 12px;
@@ -741,6 +758,11 @@ body {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
+}
+
+.cloud-session-link {
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .composer-buttons {
